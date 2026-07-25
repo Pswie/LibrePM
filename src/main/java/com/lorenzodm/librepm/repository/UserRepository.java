@@ -36,6 +36,16 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByEmailIgnoreCase(String email);
 
     /**
+     * Trova user per identità Clerk (claim {@code sub} del JWT).
+     * <p>
+     * Usata solo dal profilo {@code cloud}: è il legame esplicito e stabile fra
+     * la persona che Clerk autentica e la riga interna. Sul desktop non trova
+     * mai nulla, perché la colonna resta vuota.
+     * </p>
+     */
+    Optional<User> findByClerkUserId(String clerkUserId);
+
+    /**
      * Verifica se username esiste già
      */
     boolean existsByUsernameIgnoreCase(String username);

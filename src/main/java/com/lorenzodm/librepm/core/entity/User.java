@@ -46,6 +46,17 @@ public class User extends BaseSyncEntity {
     @Column(nullable = false, length = 255)
     private String passwordHash;
 
+    /**
+     * Identità Clerk corrispondente, cioè il claim {@code sub} del suo JWT.
+     * <p>
+     * Valorizzata solo nel profilo {@code cloud}: è il ponte fra la persona che
+     * Clerk autentica e la riga che possiede i progetti. Sul desktop resta nulla,
+     * perché non c'è nessun identity provider da cui farsi riconoscere.
+     * </p>
+     */
+    @Column(name = "clerk_user_id", length = 255, unique = true)
+    private String clerkUserId;
+
     /* Profile Information */
 
     @Column(length = 100)
@@ -129,6 +140,8 @@ public class User extends BaseSyncEntity {
     public void setEmail(String email) { this.email = email; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getClerkUserId() { return clerkUserId; }
+    public void setClerkUserId(String clerkUserId) { this.clerkUserId = clerkUserId; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getAvatarPath() { return avatarPath; }

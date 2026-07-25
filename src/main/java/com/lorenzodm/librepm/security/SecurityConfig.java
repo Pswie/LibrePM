@@ -2,6 +2,7 @@ package com.lorenzodm.librepm.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,12 +12,20 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 /**
  * Configurazione Spring Security per LibrePM
  *
+ * <p>Vale per desktop e sviluppo. Il profilo {@code cloud} è escluso e usa
+ * {@link CloudSecurityConfig}: con {@code librepm.auth.enabled=false} questa
+ * catena apre ogni endpoint, che è comodo in locale e inaccettabile su un URL
+ * pubblico. L'esclusione è esplicita perché, senza, sarebbero due catene in
+ * concorrenza e vincerebbe la più permissiva.
+ *
  * @author Lorenzo DM
  * @since 1.0.0
  * @updated 0.3.0 - Aggiunti endpoint bootstrap accessibili senza auth
+ * @updated 0.2.0 (fork Angeli del Futuro) - Limitata ai profili non cloud
  */
 @Configuration
 @EnableWebSecurity
+@Profile("!cloud")
 public class SecurityConfig {
 
     @Bean

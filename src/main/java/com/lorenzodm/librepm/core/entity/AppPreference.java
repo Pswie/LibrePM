@@ -24,9 +24,16 @@ public class AppPreference {
 
     /**
      * Chiave della preferenza (es. "autologin_enabled", "last_user_id")
+     *
+     * <p>Il nome è fra apici inversi perché {@code key} è una parola riservata di
+     * MySQL: senza virgolette il {@code CREATE TABLE} è un errore di sintassi e
+     * la tabella non nasce affatto. Gli apici dicono a Hibernate
+     * «identificatore quotato», e ogni dialetto ci mette le proprie virgolette:
+     * apici inversi su MySQL, doppi apici su SQLite. Il nome fisico della colonna
+     * resta {@code key}, quindi i database SQLite già in uso non cambiano.
      */
     @Id
-    @Column(length = 100)
+    @Column(name = "`key`", length = 100)
     private String key;
 
     /**

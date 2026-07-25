@@ -55,14 +55,28 @@ public class LibrePMApplication {
 	/**
 	 * Calcola e prepara la cartella dati dell'applicazione.
 	 * Usa ~/.librepm su Linux/Mac e C:\Users\User\.librepm su Windows.
+	 *
+	 * <p>{@code LIBREPM_DATA_PATH} ha la precedenza. Serve nel profilo
+	 * {@code cloud}: in container la home può non essere scrivibile, e questa
+	 * property viene impostata come system property, che in Spring vince su
+	 * qualunque valore scritto in {@code application.yml}. Senza questa lettura
+	 * il profilo cloud non riuscirebbe a spostare la cartella dati.
 	 */
 	private static String setupDataPath() {
+		String configured = System.getenv("LIBREPM_DATA_PATH");
+		if (configured != null && !configured.isBlank()) {
+			return prepareDirectory(configured.trim());
+		}
+
 		String userHome = System.getProperty("user.home");
 		String appFolderName = ".librepm";
-		
+
 		// Su Windows potremmo voler usare AppData, ma .librepm in user home è standard e sicuro
-		String appPath = userHome + File.separator + appFolderName;
-		
+		return prepareDirectory(userHome + File.separator + appFolderName);
+	}
+
+	/** Crea la cartella dati se manca, con ripiego su {@code ./data}. */
+	private static String prepareDirectory(String appPath) {
 		File appDir = new File(appPath);
 		if (!appDir.exists()) {
 			boolean created = appDir.mkdirs();

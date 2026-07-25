@@ -35,10 +35,15 @@ public class Dependency extends BaseSyncEntity {
     @Column(nullable = false, length = 20)
     private DependencyType type;
 
-    @Column
+    // `lag` e `lead` sono parole riservate di MySQL 8 (sono funzioni finestra):
+    // senza virgolette il CREATE TABLE è un errore di sintassi. Gli apici inversi
+    // dicono a Hibernate «identificatore quotato» e ogni dialetto ci mette le
+    // proprie virgolette. Il nome fisico non cambia, quindi i database SQLite già
+    // in uso e la migrazione V22 restano validi.
+    @Column(name = "`lag`")
     private Integer lag; // In minutes (positive = delay successor)
 
-    @Column
+    @Column(name = "`lead`")
     private Integer lead; // In minutes (positive = overlap/advance successor)
 
     public Dependency() {

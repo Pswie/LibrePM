@@ -34,8 +34,14 @@ public class Asset extends BaseSyncEntity {
     @Column(nullable = false, length = 500)
     private String fileName;
 
+    // 768 e non 1000: la colonna è unica, quindi indicizzata, e in utf8mb4 ogni
+    // carattere occupa 4 byte. Il limite di una chiave InnoDB è 3072 byte, cioè
+    // esattamente 768 caratteri; con 1000 il vincolo di unicità non si crea e su
+    // MySQL lo schema resta a metà. Su SQLite la lunghezza è ignorata, quindi i
+    // database desktop già in uso non cambiano. Sono percorsi relativi dentro
+    // data/assets/: 768 caratteri bastano con abbondanza.
     @NotBlank(message = "Path file obbligatorio")
-    @Column(nullable = false, unique = true, length = 1000)
+    @Column(nullable = false, unique = true, length = 768)
     private String filePath; // Relative path in data/assets/
 
     @Column(length = 100)

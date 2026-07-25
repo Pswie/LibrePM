@@ -14,6 +14,12 @@ node_modules
 dist
 dist-ssr
 dist-electron
+# Esito di `npm run build:web` per la sezione bandi: ricostruibile, e con dentro
+# gli host presi dalle variabili d'ambiente del momento.
+dist-web
+
+# Creata da `vercel` in locale: contiene gli identificativi del progetto.
+.vercel
 
 # LibrePm Specific Build Artifacts
 backend-libs/

@@ -47,12 +47,88 @@ const STORAGE_KEY_LAST_USER = 'librepm_last_user_id';
 const STORAGE_KEY_LANGUAGE = 'librepm_language';
 
 /**
+ * URL del backend nel profilo web, fissato in fase di build.
+ * Su Vercel vale per esempio https://<servizio>.a.run.app/api
+ */
+const CONFIGURED_BASE_URL = import.meta.env?.VITE_API_BASE_URL || null;
+
+/**
+ * True quando si gira dentro Electron: il ponte `window.librepm` esiste solo là.
+ * Sul web cercare il backend su localhost non ha senso.
+ * @returns {boolean}
+ */
+function isDesktopRuntime() {
+    return typeof window !== 'undefined' && !!window.librepm;
+}
+
+/**
+ * Fornitore del token di sessione, registrato dal guscio web (Clerk).
+ * Resta nullo nel desktop, dove non c'è nessun identity provider.
+ */
+let tokenProvider = null;
+
+/**
+ * Registra la funzione che restituisce il token di sessione corrente.
+ *
+ * Va chiamata dal guscio web prima di qualunque richiesta. Il token si richiede
+ * a ogni chiamata e non si conserva: Clerk lo ruota, e una copia tenuta da parte
+ * scadrebbe senza che il client se ne accorga.
+ *
+ * @param {null | (() => Promise<string|null>)} provider
+ */
+function setTokenProvider(provider) {
+    tokenProvider = provider;
+}
+
+/**
+ * @returns {Promise<string|null>} il token corrente, null nel desktop.
+ */
+async function currentToken() {
+    if (!tokenProvider) return null;
+    try {
+        return await tokenProvider();
+    } catch (e) {
+        console.warn('[LibrePM API] Token di sessione non disponibile:', e);
+        return null;
+    }
+}
+
+/**
+ * Aggiunge l'intestazione Authorization se c'è un token da mandare.
+ * @param {Object} headers
+ * @returns {Promise<Object>}
+ */
+async function withAuthorization(headers) {
+    const token = await currentToken();
+    if (!token) return headers;
+    return { ...headers, Authorization: `Bearer ${token}` };
+}
+
+/**
  * Initializes the API client.
  * Reads the port from the config file or uses the default.
  * @returns {Promise<string>} The base API URL.
  */
 async function initializeApi() {
     if (API_BASE_URL) return API_BASE_URL;
+
+    // Profilo web: l'indirizzo è deciso in fase di build e non si cerca nulla.
+    if (CONFIGURED_BASE_URL) {
+        API_BASE_URL = CONFIGURED_BASE_URL.replace(/\/+$/, '');
+        console.log('[LibrePM API] Backend configurato:', API_BASE_URL);
+        return API_BASE_URL;
+    }
+
+    // Sul web senza VITE_API_BASE_URL si fallisce subito e a voce alta. Il
+    // ripiego su localhost esiste per il desktop; in un browser produrrebbe una
+    // sfilza di errori di rete oscuri, oppure — peggio — la connessione al
+    // backend di sviluppo di chi sta guardando la pagina.
+    if (!isDesktopRuntime()) {
+        throw new Error(
+            '[LibrePM API] VITE_API_BASE_URL non impostata: la build web non sa '
+            + 'a quale backend parlare.'
+        );
+    }
 
     try {
         // In Electron, try reading port from config file via IPC
@@ -148,10 +224,10 @@ async function apiRequest(endpoint, options = {}) {
 
     const config = {
         ...options,
-        headers: {
+        headers: await withAuthorization({
             ...defaultHeaders,
             ...options.headers,
-        },
+        }),
     };
 
     if (options.body && typeof options.body === 'object') {
@@ -300,6 +376,25 @@ export const librepm = {
     },
     
     getApiUrl: () => API_BASE_URL, // Expose helper directly for getting URL synchronously (if initialized)
+
+    /**
+     * Registra il fornitore del token di sessione (solo profilo web).
+     * Vedi setTokenProvider.
+     */
+    setTokenProvider,
+
+    /**
+     * Chi sono io, secondo il backend.
+     *
+     * Sostituisce la sequenza di bootstrap nel profilo web, dove
+     * `/api/bootstrap/**` è negato: l'utente non lo si sceglie da un elenco, lo
+     * dichiara il token Clerk. Restituisce anche i ruoli applicativi, che
+     * servono al menù per non mostrare sezioni che il backend rifiuterebbe.
+     *
+     * @returns {Promise<{id: string, username: string, displayName: string,
+     *   email: string, workspaceProfileId: string, roles: string[]}>}
+     */
+    me: () => apiRequest('/me'),
 
     /**
      * Sets the current user ID.
@@ -1840,7 +1935,11 @@ export const librepm = {
         const response = await fetch(`${baseUrl}${basePath}/assets/upload`, {
             method: 'POST',
             body: formData,
-            headers: CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {},
+            // Niente Content-Type: con FormData lo imposta il browser, che deve
+            // aggiungerci il boundary.
+            headers: await withAuthorization(
+                CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {}
+            ),
         });
 
         if (!response.ok) {
@@ -1966,7 +2065,9 @@ export const librepm = {
         const response = await fetch(
             `${baseUrl}/db/export?format=${format}&includeAssets=${includeAssets}`,
             {
-                headers: CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {},
+                headers: await withAuthorization(
+                    CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {}
+                ),
             }
         );
 
@@ -1988,7 +2089,9 @@ export const librepm = {
         const response = await fetch(`${baseUrl}/db/import`, {
             method: 'POST',
             body: formData,
-            headers: CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {},
+            headers: await withAuthorization(
+                CURRENT_USER_ID ? { 'X-User-Id': CURRENT_USER_ID } : {}
+            ),
         });
 
         if (!response.ok) {
@@ -2046,11 +2149,14 @@ export const librepm = {
      */
     diagnosticsGenerate: async () => {
         const baseUrl = await getApiUrl();
+        // CURRENT_USER_ID e non currentUserId: quest'ultimo non è mai stato
+        // dichiarato, quindi in un modulo ES la riga lanciava ReferenceException
+        // e la generazione della diagnostica falliva sempre.
         const headers = { 'Content-Type': 'application/json' };
-        if (currentUserId) headers['X-User-Id'] = currentUserId;
+        if (CURRENT_USER_ID) headers['X-User-Id'] = CURRENT_USER_ID;
         const response = await fetch(`${baseUrl}/diagnostics/generate`, {
             method: 'POST',
-            headers,
+            headers: await withAuthorization(headers),
         });
         if (!response.ok) throw new Error(`Diagnostics generation failed: ${response.status}`);
         return response.blob();
@@ -2297,9 +2403,12 @@ export const librepm = {
     // PDF Report Generation
     reportGenerate: async (projectId, type = 'EXECUTIVE_SUMMARY') => {
         const baseUrl = await getApiUrl();
+        // Stessa correzione: currentUserId non esiste, era CURRENT_USER_ID.
         const headers = {};
-        if (currentUserId) headers['X-User-Id'] = currentUserId;
-        const response = await fetch(`${baseUrl}/projects/${projectId}/report?type=${type}`, { headers });
+        if (CURRENT_USER_ID) headers['X-User-Id'] = CURRENT_USER_ID;
+        const response = await fetch(`${baseUrl}/projects/${projectId}/report?type=${type}`, {
+            headers: await withAuthorization(headers),
+        });
         if (!response.ok) throw new Error(`Report generation failed: ${response.status}`);
         return response.blob();
     },

@@ -2,13 +2,24 @@ package com.lorenzodm.librepm.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * CORS di desktop e sviluppo, dove sono ammessi anche {@code localhost} con
+ * porta qualsiasi e {@code file://}.
+ *
+ * <p>Escluso dal profilo {@code cloud}: là le origini le decide
+ * {@code CloudSecurityConfig} a partire da un elenco esatto. I pattern con
+ * wildcard sono comodi in locale e su un backend pubblico aprirebbero l'API a
+ * qualsiasi sito.
+ */
 @Configuration
+@Profile("!cloud")
 @EnableConfigurationProperties(LibrePMCorsProperties.class)
 public class CorsConfig implements WebMvcConfigurer {
 

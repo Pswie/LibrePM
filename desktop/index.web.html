@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      La CSP della build web è diversa da quella di index.html, che ammette
+      connect-src verso localhost perché nel desktop il backend gira in locale.
+      Qui le connessioni devono raggiungere il backend su Cloud Run e Clerk, e
+      localhost non va lasciato aperto: su una pagina pubblica sarebbe un modo
+      per far parlare il browser di chi visita con servizi sulla sua macchina.
+
+      I due host non sono scritti a mano: li sostituisce Vite in fase di build
+      partendo da VITE_API_BASE_URL e dalla chiave Clerk (vedi
+      vite.web.config.mjs), così non possono divergere dalla configurazione vera.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' %CLERK_HOSTS%; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' %API_ORIGIN% %CLERK_HOSTS%; img-src 'self' data: blob: %CLERK_HOSTS%; font-src 'self' data:; frame-src 'self' %CLERK_HOSTS%;" />
+    <title>Bandi e progetti — Angeli del Futuro</title>
+    <link rel="icon" type="image/png" href="/assets/icon.png" />
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.web.jsx"></script>
+</body>
+</html>

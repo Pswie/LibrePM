@@ -65,9 +65,9 @@ const AppState = {
  * @since 0.5.2
  * @updated 0.7.0 - Hard Reload on Logout
  */
-export default function App() {
+export default function App({ webSession = null }) {
     const { t, i18n } = useTranslation();
-    
+
     // ========================================
     // State
     // ========================================
@@ -90,6 +90,16 @@ export default function App() {
      * - Handles auto-login logic
      */
     const runBootstrap = useCallback(async () => {
+        // Profilo web: l'identità è già stata risolta da WebAuthGate tramite
+        // Clerk. Qui non c'è niente da avviare — la sequenza di bootstrap
+        // chiamerebbe /api/bootstrap, che nel profilo cloud è negato, e
+        // l'applicazione si fermerebbe su una schermata di errore.
+        if (webSession) {
+            setCurrentUser(webSession.user);
+            setAppState(AppState.ENTER_APP);
+            return;
+        }
+
         // Guard: prevent concurrent executions (React StrictMode double-invoke)
         if (bootstrapRunning.current) {
             console.log("[App] Bootstrap già in corso, skip");
@@ -161,7 +171,7 @@ export default function App() {
         } finally {
             bootstrapRunning.current = false;
         }
-    }, []); // Removed i18n and t from dependencies to avoid loop
+    }, [webSession]); // Removed i18n and t from dependencies to avoid loop
 
     // ========================================
     // Effects
@@ -217,9 +227,22 @@ export default function App() {
      */
     const handleLogout = useCallback(async () => {
         console.log("[App] Logout avviato...");
-        
+
         // 1. Show transition screen
         setAppState(AppState.LOGGING_OUT);
+
+        // Profilo web: la sessione è di Clerk e va chiusa là. Le preferenze di
+        // autologin non c'entrano — non esiste autologin quando l'accesso passa
+        // da un identity provider — e /api/bootstrap è comunque negato.
+        if (webSession) {
+            try {
+                await webSession.signOut();
+            } catch (e) {
+                console.error("[App] Errore durante il logout Clerk:", e);
+                window.location.reload();
+            }
+            return;
+        }
 
         try {
             // 2. Reset autologin preferences

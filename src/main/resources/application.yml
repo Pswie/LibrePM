@@ -180,3 +180,96 @@ logging:
   level:
     root: WARN
     com.lorenzodm.librepm: INFO
+
+---
+# ============================================
+# Profile: Cloud (sezione bandi di Angeli del Futuro)
+# ============================================
+# LibrePM gira come backend pubblico dietro HTTPS, con lo schema su un database
+# MySQL condiviso — servizio unico, database separato da quello del gestionale.
+# Nessun valore permissivo ha un default: CloudSecurityConfig rifiuta di
+# avviarsi senza issuer o con origini aperte. Su un URL pubblico un default
+# comodo non è un inconveniente, è una fuga di dati.
+#
+#   SPRING_DATASOURCE_URL       jdbc:mysql://<host>:<porta>/librepm?sslMode=REQUIRED
+#   SPRING_DATASOURCE_USERNAME
+#   SPRING_DATASOURCE_PASSWORD  da Secret Manager, mai nel repository
+#   CLERK_ISSUER_URI            stessa istanza Clerk del gestionale
+#   CORS_ALLOWED_ORIGINS        origine esatta della SPA, senza wildcard
+#   PORT                        iniettata da Cloud Run
+spring:
+  config:
+    activate:
+      on-profile: cloud
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # Il piano Aiven Free ha un tetto basso di connessioni e lo condividiamo
+      # col gestionale: tenere il pool corto è una precauzione, non un dettaglio.
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: ${DB_POOL_MIN:1}
+
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    # Lo schema è di proprietà di Flyway. Hibernate non lo modifica.
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        boot:
+          allow_jdbc_metadata_access: true
+
+  flyway:
+    enabled: true
+    # Set di migrazioni separato: quelle in db/migration sono scritte per SQLite
+    # e su MySQL non si applicano.
+    locations: classpath:db/migration_mysql
+    baseline-on-migrate: true
+
+server:
+  port: ${PORT:8080}
+  address: 0.0.0.0
+  shutdown: graceful
+  # Dietro il proxy TLS di Cloud Run: rispetta X-Forwarded-* per costruire URL
+  # e redirect corretti.
+  forward-headers-strategy: framework
+
+management:
+  health:
+    diskspace:
+      enabled: false
+
+librepm:
+  mode: web
+  # Su Cloud Run il filesystem è effimero e la home può non essere scrivibile.
+  data:
+    path: ${LIBREPM_DATA_PATH:/tmp/librepm}
+  cors:
+    # Origine esatta della SPA. Nessun default: con la lista vuota o con "*"
+    # l'applicazione non parte.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    # Identità via Bearer token: nessun cookie da inviare cross-site.
+    allow-credentials: false
+    max-age-seconds: 3600
+  auth:
+    # Non configurabile da variabile d'ambiente di proposito: sul web l'unica
+    # modalità ammessa è quella autenticata. Un LIBREPM_AUTH_ENABLED=false
+    # aprirebbe tutte le API.
+    enabled: true
+  clerk:
+    # Stessa istanza Clerk del gestionale: un solo account per le due sezioni.
+    issuer-uri: ${CLERK_ISSUER_URI:}
+    audience: ${CLERK_AUDIENCE:}
+
+logging:
+  level:
+    root: INFO
+    com.lorenzodm.librepm: INFO
+  # Su Cloud Run i log vanno su stdout, non su file: la cartella logs
+  # sparirebbe a ogni riavvio dell'istanza.
+  file:
+    name: ""
