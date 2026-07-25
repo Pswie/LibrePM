@@ -42,3 +42,4 @@ jre/
 *.sln
 *.sw?
 Thumbs.db
+.env*
