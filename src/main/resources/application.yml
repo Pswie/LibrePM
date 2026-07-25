@@ -248,6 +248,12 @@ librepm:
   # Su Cloud Run il filesystem è effimero e la home può non essere scrivibile.
   data:
     path: ${LIBREPM_DATA_PATH:/tmp/librepm}
+  ui:
+    # In cloud questa è la sezione bandi di Angeli del Futuro: il contenuto sta
+    # su carta chiara e l'unico elemento scuro è il binario laterale, come
+    # nell'area amministrativa del sito. Il desktop resta scuro, perché il
+    # valore predefinito nel codice è `dark` e questo profilo non lo tocca.
+    default-theme: ${LIBREPM_DEFAULT_THEME:light}
   cors:
     # Origine esatta della SPA. Nessun default: con la lista vuota o con "*"
     # l'applicazione non parte.

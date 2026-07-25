@@ -11,6 +11,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,14 +45,30 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     private final UserSettingsRepository settingsRepository;
     private final UserRepository userRepository;
 
+    /**
+     * Tema assegnato a chi non ne ha ancora scelto uno.
+     *
+     * <p>È configurabile perché le due distribuzioni sono due prodotti diversi:
+     * LibrePM da scrivania nasce scuro, mentre in cloud è la sezione bandi di
+     * Angeli del Futuro, dove il contenuto sta su carta chiara e l'unico elemento
+     * scuro è il binario laterale. Il valore predefinito resta {@code dark}, così
+     * il desktop non cambia; il profilo {@code cloud} lo porta a {@code light}.
+     *
+     * <p>Deciderlo nel frontend non basta: il tema arriva da qui, e il valore
+     * salvato vince su qualunque impostazione iniziale del client.
+     */
+    private final String defaultTheme;
+
     @PersistenceContext
     private EntityManager entityManager;
 
     public UserSettingsServiceImpl(
             UserSettingsRepository settingsRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            @Value("${librepm.ui.default-theme:dark}") String defaultTheme) {
         this.settingsRepository = settingsRepository;
         this.userRepository = userRepository;
+        this.defaultTheme = defaultTheme;
     }
 
     /**
@@ -114,7 +131,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
                 .orElseThrow(() -> new ResourceNotFoundException("User non trovato: " + userId));
 
         UserSettings settings = new UserSettings(user);
-        settings.setTheme("dark");
+        settings.setTheme(defaultTheme);
         settings.setLanguage("it");
         settings.setNotificationsEnabled(true);
         settings.setFocusTimerDefaultMinutes(25);
@@ -185,7 +202,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
 
         UserSettings settings = getOrCreateSettings(userId);
 
-        settings.setTheme("dark");
+        settings.setTheme(defaultTheme);
         settings.setLanguage("it");
         settings.setNotificationsEnabled(true);
         settings.setFocusTimerDefaultMinutes(25);
