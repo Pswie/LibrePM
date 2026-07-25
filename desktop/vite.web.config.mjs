@@ -47,6 +47,13 @@ export default defineConfig(({ mode }) => {
 
         define: {
             '__APP_VERSION__': JSON.stringify(appVersion),
+            // Sul web si parte in chiaro: il contenuto sta su carta calda e
+            // l'unico elemento scuro è il binario laterale, come nell'area
+            // amministrativa del sito. Il desktop resta scuro, perché là questa
+            // sostituzione non avviene. Si può forzare con VITE_DEFAULT_THEME.
+            'import.meta.env.VITE_DEFAULT_THEME': JSON.stringify(
+                env.VITE_DEFAULT_THEME || 'light'
+            ),
         },
 
         base: env.VITE_BASE_PATH || '/',

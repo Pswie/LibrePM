@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { librepm } from "@api/librepm.js";
+
+/**
+ * Tema iniziale dell'applicazione.
+ *
+ * Il desktop nasce scuro e resta scuro: la variabile non è definita là. La build
+ * web la imposta a "light" (vite.web.config.mjs), perché nella sezione bandi il
+ * contenuto deve stare su carta chiara come nell'area amministrativa del sito,
+ * con l'unico elemento scuro nel binario laterale.
+ *
+ * Non è solo una questione estetica: `loadTheme()` legge il tema salvato da
+ * /api/settings, che nel profilo cloud è riservato al presidente. Per tutti gli
+ * altri ruoli quella chiamata risponde 403 e si finisce nel ramo di ripiego,
+ * quindi il valore iniziale è anche quello definitivo.
+ */
+const DEFAULT_THEME = import.meta.env?.VITE_DEFAULT_THEME || "dark";
 import { toast } from "react-toastify";
 import { useTranslation } from 'react-i18next';
 import { useModal } from "../hooks/useModal.js";
@@ -192,7 +207,7 @@ export default function AppShell({ initialUser, onLogout }) {
     // State - Theme
     // ========================================
 
-    const [currentTheme, setCurrentTheme] = useState("dark");
+    const [currentTheme, setCurrentTheme] = useState(DEFAULT_THEME);
 
     // ========================================
     // State - Profile Menu
@@ -342,7 +357,7 @@ export default function AppShell({ initialUser, onLogout }) {
                 }
             } catch (e) {
                 console.warn("[AppShell] Impossibile caricare tema, uso default:", e.message);
-                setCurrentTheme("dark");
+                setCurrentTheme(DEFAULT_THEME);
             }
         }
 

@@ -261,9 +261,9 @@ export default function CommandPalette({ shell }) {
                     border-color: var(--jl-border-color, #e9ecef);
                 }
                 .list-group-item.active {
-                    background-color: var(--jl-primary, #0d6efd);
+                    background-color: var(--jl-primary, var(--adf-accent, #0d6efd));
                     color: white;
-                    border-color: var(--jl-primary, #0d6efd);
+                    border-color: var(--jl-primary, var(--adf-accent, #0d6efd));
                 }
                 .list-group-item.active .text-muted {
                     color: rgba(255,255,255,0.8) !important;

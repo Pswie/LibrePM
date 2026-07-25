@@ -90,7 +90,7 @@ export default function ProfileMenu({ initials = "U", title, subtitle, items = [
                     width: 36px;
                     height: 36px;
                     border-radius: 50%;
-                    background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+                    background: var(--adf-avatar-bg, linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%));
                     color: white;
                     border: none;
                     font-weight: 600;
@@ -136,7 +136,7 @@ export default function ProfileMenu({ initials = "U", title, subtitle, items = [
                     width: 40px;
                     height: 40px;
                     border-radius: 50%;
-                    background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+                    background: var(--adf-avatar-bg, linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%));
                     color: white;
                     display: flex;
                     align-items: center;
@@ -155,7 +155,7 @@ export default function ProfileMenu({ initials = "U", title, subtitle, items = [
                 
                 .profile-dropdown-subtitle {
                     font-size: 0.75rem;
-                    color: #6c757d;
+                    color: var(--adf-panel-muted, #6c757d);
                 }
                 
                 .profile-dropdown-items {
@@ -171,18 +171,18 @@ export default function ProfileMenu({ initials = "U", title, subtitle, items = [
                     background: none;
                     text-align: left;
                     font-size: 0.875rem;
-                    color: #495057;
+                    color: var(--adf-panel-text, #495057);
                     cursor: pointer;
                     transition: background 0.1s;
                 }
                 
                 .profile-dropdown-item:hover {
-                    background: #f8f9fa;
+                    background: var(--adf-panel-hover, #f8f9fa);
                 }
                 
                 .dropdown-divider {
                     margin: 0.25rem 0;
-                    border-top: 1px solid #e9ecef;
+                    border-top: 1px solid var(--adf-panel-border, #e9ecef);
                 }
             `}</style>
         </div>

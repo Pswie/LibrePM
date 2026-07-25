@@ -69,6 +69,15 @@
   --adf-rail-hover: rgba(255, 255, 255, 0.06);
   --adf-rail-active-bg: #243129;
   --adf-rail-active-bar: inset 3px 0 0 var(--adf-gold-soft);
+
+  /* Stesso meccanismo per gli altri componenti che tengono gli stili dentro il
+     JSX: menu del profilo, palette dei comandi, intestazione. */
+  --adf-accent: var(--adf-forest-2);
+  --adf-avatar-bg: linear-gradient(135deg, var(--adf-forest-3) 0%, var(--adf-forest) 100%);
+  --adf-panel-text: var(--adf-ink);
+  --adf-panel-muted: var(--adf-ink-faint);
+  --adf-panel-hover: var(--adf-sage-soft);
+  --adf-panel-border: var(--adf-hairline);
 }
 
 /* ---------------------------------------------------------------------------
@@ -101,7 +110,12 @@
 /* Tema scuro: gli stessi toni della barra laterale del sito, non un grigio
    neutro — un'applicazione che di giorno è verde bosco e di notte diventa
    grigio ardesia sembra un'altra applicazione. */
-[data-theme="dark"] {
+/* Due selettori perché LibrePM ne usa due: `librepm-shell.css` dichiara i propri
+   valori scuri sia su [data-theme="dark"] sia su .jl-root.dark-theme, e AppShell
+   applica entrambi. Coprirne uno solo lascerebbe metà interfaccia col tema
+   precedente. */
+[data-theme="dark"],
+.jl-root.dark-theme {
   --jl-bg-primary: #14201a;
   --jl-bg-secondary: #1b2a22;
   --jl-bg-card: #1b2a22;
@@ -361,6 +375,63 @@ h1, h2, h3, h4, h5, h6,
 
 .jl-muted {
   color: var(--adf-ink-faint);
+}
+
+/* ---------------------------------------------------------------------------
+   Respiro
+   -------------------------------------------------------------------------
+   Quello che distingue l'area amministrativa del sito non è solo la tavolozza:
+   è la spaziatura. Titoli grandi con crenatura stretta, molto bianco attorno,
+   riquadri separati da linee sottili invece che da ombre. LibrePM nasce compatto
+   perché nasce come applicazione desktop, dove lo spazio della finestra è quello
+   che è.
+
+   Qui si allarga il passo senza toccare la struttura delle schermate: nessun
+   riposizionamento, solo aria e scala. */
+
+.jl-content,
+.jl-page {
+  padding: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+.jl-header {
+  padding-inline: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+.jl-header-title {
+  font-size: clamp(1.35rem, 2.2vw, 1.9rem);
+  font-weight: 800;
+}
+
+.card-body {
+  padding: clamp(1.1rem, 2vw, 1.5rem);
+}
+
+.card + .card,
+.jl-page > .card {
+  margin-top: 1rem;
+}
+
+/* Titoli di sezione: la scala del sito, non quella predefinita di Bootstrap. */
+h1, .h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); font-weight: 800; }
+h2, .h2 { font-size: clamp(1.4rem, 2.4vw, 1.9rem); font-weight: 800; }
+h3, .h3 { font-size: clamp(1.15rem, 1.9vw, 1.4rem); font-weight: 780; }
+h4, .h4 { font-size: 1.05rem; font-weight: 760; }
+
+p {
+  line-height: 1.7;
+}
+
+/* Le etichettine in maiuscoletto oro sono la cifra dell'area amministrativa del
+   sito: indicano di cosa parla il riquadro senza rubare la scena al titolo. */
+.card-header > small,
+.card-header .text-muted,
+.jl-page > small.text-muted {
+  color: var(--adf-gold) !important;
+  font-size: 0.63rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 
 /* ---------------------------------------------------------------------------
