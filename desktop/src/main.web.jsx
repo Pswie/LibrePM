@@ -22,6 +22,12 @@ import { ModalProvider } from "./context/ModalContext";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import "@fontsource-variable/plus-jakarta-sans";
+
+// Ultimo: il tema di Angeli del Futuro sovrascrive Bootstrap e gli stili
+// storici. Caricato solo qui, cioè solo dalla build web — l'applicazione
+// Electron mantiene il suo aspetto.
+import "./styles/adf-theme.css";
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
