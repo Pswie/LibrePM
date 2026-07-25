@@ -86,8 +86,13 @@ export default function LeftNav({ items, activeId, onSelect }) {
                     flex-direction: column;
                     width: 220px;
                     min-width: 220px;
-                    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-                    color: white;
+                    /* Il valore dentro var() è il ripiego, cioè il colore
+                       storico: sul desktop --adf-rail-bg non è definita, vince
+                       quello, e l'aspetto dell'applicazione Electron non cambia.
+                       Sul web la definisce il tema (styles/adf-theme.css) e la
+                       barra diventa verde bosco come nel sito. */
+                    background: var(--adf-rail-bg, linear-gradient(180deg, #1a1a2e 0%, #16213e 100%));
+                    color: var(--adf-rail-text-strong, white);
                     transition: width 0.2s ease, min-width 0.2s ease;
                 }
                 
@@ -169,8 +174,9 @@ export default function LeftNav({ items, activeId, onSelect }) {
                 }
                 
                 .jl-nav-link.active {
-                    background: rgba(79, 195, 247, 0.2);
-                    color: #4fc3f7;
+                    background: var(--adf-rail-active-bg, rgba(79, 195, 247, 0.2));
+                    color: var(--adf-rail-text-strong, #4fc3f7);
+                    box-shadow: var(--adf-rail-active-bar, none);
                 }
                 
                 .jl-nav-icon {

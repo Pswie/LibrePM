@@ -114,6 +114,21 @@ database SQLite già in uso restano validi.
 - `desktop/src/branding.js` — **nuovo**: l'offerta del sorgente dell'art. 13.
 - `desktop/vercel.json`, `desktop/package.json`, `desktop/.gitignore`.
 
+### Aspetto della build web
+
+- `desktop/src/styles/adf-theme.css` — **nuovo**: tema di Angeli del Futuro
+  (carta calda, verde bosco, terracotta, Plus Jakarta Sans). Ridefinisce i token
+  `--jl-*` e `--bs-*` invece di riscrivere i componenti, e ridipinge i colori
+  fissi rimasti in `index.css`, `Dashboard.css` e `librepm-shell.css`. Caricato
+  solo da `main.web.jsx`: **l'applicazione Electron non cambia aspetto**.
+- `desktop/src/layout/LeftNav.jsx` — i colori della barra laterale passano da
+  valori fissi a variabili con il valore storico come ripiego
+  (`var(--adf-rail-bg, linear-gradient(...))`). Serviva perché il componente
+  tiene i propri stili in un blocco `<style>` interno: stando nel body vince
+  nella cascata su qualunque foglio esterno, quindi non era ridipingibile da
+  fuori. Con il ripiego, sul desktop — dove le variabili non sono definite —
+  resta il blu notte originale.
+
 ### Difetti preesistenti corretti lungo la strada
 
 - `desktop/src/api/librepm.js` — `diagnosticsGenerate()` e `reportGenerate()`

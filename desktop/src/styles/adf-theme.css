@@ -52,6 +52,23 @@
   --adf-r-shell: 2rem;
   --adf-shadow-card: 0 24px 60px -30px rgba(22, 40, 30, 0.25);
   --adf-shadow-rail: 0 30px 70px -45px rgba(22, 40, 30, 0.5);
+
+  /* ---- Binario laterale ----
+     Questi valori li legge direttamente `layout/LeftNav.jsx`, che tiene i propri
+     stili in un blocco <style> dentro il componente. Un blocco così sta nel body
+     e quindi vince, nella cascata, su questo foglio: non si può ridipingere da
+     fuori a pari specificità. Per questo il componente è stato reso sensibile a
+     queste variabili, con il colore storico come ripiego — sul desktop restano
+     indefinite e non cambia nulla.
+
+     Sono gli stessi toni della barra di AdminLayout.astro nel sito. */
+  --adf-rail-bg: var(--adf-forest);
+  --adf-rail-border: rgba(255, 255, 255, 0.11);
+  --adf-rail-text: #aebbb2;
+  --adf-rail-text-strong: #f7f8f4;
+  --adf-rail-hover: rgba(255, 255, 255, 0.06);
+  --adf-rail-active-bg: #243129;
+  --adf-rail-active-bar: inset 3px 0 0 var(--adf-gold-soft);
 }
 
 /* ---------------------------------------------------------------------------
@@ -407,6 +424,20 @@ h1, h2, h3, h4, h5, h6,
   scrollbar-color: var(--adf-sage) transparent;
 }
 
+/* Chrome e derivati ignorano scrollbar-color e vogliono gli pseudo-elementi,
+   che in index.css sono grigi fissi. */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--adf-sage);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--adf-ink-faint);
+}
+
 a {
   color: var(--adf-clay-deep);
   text-decoration-thickness: 1px;
@@ -415,4 +446,125 @@ a {
 
 a:hover {
   color: var(--adf-clay);
+}
+
+/* L'anello di messa a fuoco era azzurro: è il segnale più visibile di tutti,
+   perché compare a ogni passaggio da tastiera. */
+:focus-visible {
+  outline: 2px solid var(--adf-forest-3);
+  outline-offset: 2px;
+}
+
+kbd {
+  background: var(--adf-sage-soft);
+  border: 1px solid var(--adf-hairline-strong);
+  color: var(--adf-ink);
+}
+
+/* ---------------------------------------------------------------------------
+   Colori scritti a mano nei fogli storici
+   -------------------------------------------------------------------------
+   I blocchi qui sotto non passano dai token: sono valori fissi dentro
+   index.css, Dashboard.css e librepm-shell.css, scritti prima che esistesse un
+   tema. Sono il motivo per cui restavano macchie di azzurro Bootstrap in mezzo
+   al verde. Vengono ridipinti qui invece che alla fonte, perché quei fogli sono
+   condivisi con l'applicazione Electron, che mantiene il suo aspetto.
+
+   La corrispondenza è semantica, non letterale: l'azzurro «informativo» diventa
+   verde bosco, l'arancione «attenzione» diventa oro, il rosso «problema» resta
+   rosso ma caldo. Tradurre i colori uno per uno avrebbe dato un risultato
+   coerente nella tavolozza e incomprensibile nel significato.
+   ------------------------------------------------------------------------- */
+
+/* ---- Diagramma di Gantt ---- */
+
+.gantt .bar-wrapper .bar-progress,
+.gantt .bar-wrapper .bar {
+  fill: var(--adf-forest-2) !important;
+}
+
+.gantt .bar-wrapper .bar-summary .bar-progress,
+.gantt .bar-wrapper .bar-summary .bar {
+  fill: var(--adf-ink-faint) !important;
+}
+
+.gantt .bar-wrapper .bar-milestone .bar-progress,
+.gantt .bar-wrapper .bar-milestone .bar {
+  fill: var(--adf-gold) !important;
+}
+
+/* ---- Quadro di sintesi (Dashboard.css) ---- */
+
+.executive-dashboard {
+  font-family: var(--adf-font);
+  color: var(--adf-ink);
+  background-color: var(--adf-paper-deep);
+}
+
+.dashboard-header h1 {
+  color: var(--adf-ink);
+  letter-spacing: -0.035em;
+}
+
+.dashboard-widget {
+  background: var(--adf-surface);
+  border: 1px solid var(--adf-hairline);
+  border-radius: var(--adf-r-card);
+  box-shadow: none;
+}
+
+.dashboard-widget h3 {
+  color: var(--adf-ink);
+  border-bottom-color: var(--adf-hairline) !important;
+  letter-spacing: -0.02em;
+}
+
+.widget-placeholder,
+.charter-section h4 {
+  color: var(--adf-ink-faint);
+}
+
+.widget-error {
+  color: #9b3227;
+}
+
+/* Era una velatura azzurra con bordo azzurro: diventa la carta salvia. */
+.project-summary {
+  background-color: var(--adf-sage-soft) !important;
+  border-color: var(--adf-hairline-strong) !important;
+}
+
+/* Stati: verde bosco quando va, oro quando va guardato, rosso caldo quando no. */
+.status-on_track {
+  color: #2f6b45;
+}
+
+.status-at_risk {
+  color: var(--adf-clay-deep);
+}
+
+.status-delayed,
+.status-blocked {
+  color: #9b3227;
+}
+
+/* ---- Rischi ---- */
+
+.risk-item {
+  border-left-color: var(--adf-hairline-strong);
+}
+
+.risk-high {
+  border-left-color: #9b3227;
+  background-color: rgba(155, 50, 39, 0.05);
+}
+
+.risk-medium {
+  border-left-color: var(--adf-gold);
+  background-color: rgba(201, 154, 63, 0.07);
+}
+
+.risk-low {
+  border-left-color: #2f6b45;
+  background-color: transparent;
 }
