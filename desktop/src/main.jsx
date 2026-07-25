@@ -18,6 +18,12 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 // Import Bootstrap JS
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
+// Comportamento del layout su finestra stretta. Vale per entrambi i target,
+// desktop e web — a differenza del tema, qui non c'è nulla di estetico da
+// tenere separato. L'applicazione a finestra piena non incontra mai queste
+// regole; se qualcuno stringe la finestra, ne guadagna.
+import "./styles/mobile.css";
+
 // Mount React app
 const container = document.getElementById("root");
 const root = createRoot(container);

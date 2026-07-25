@@ -26,6 +26,7 @@ import ProfileMenu from "./ProfileMenu.jsx";
 import CommandPalette from "../components/CommandPalette.jsx";
 import NotificationBell from "../components/NotificationBell.jsx";
 import PortalModal from "../components/PortalModal.jsx";
+import ResponsiveTables from "../components/ResponsiveTables.jsx";
 
 // Pages
 import MenuPage from "../pages/MenuPage.jsx";
@@ -201,7 +202,33 @@ export default function AppShell({ initialUser, onLogout }) {
     const [title, setTitle] = useState(activePage?.label || "Loading...");
     const [headerActions, setHeaderActions] = useState(null);
     const [rightPanel, setRightPanel] = useState(null);
-    const [rightPanelOpen, setRightPanelOpen] = useState(true);
+
+    /**
+     * Pannello di contesto aperto.
+     *
+     * Su schermo largo è una colonna accanto al contenuto e conviene averla
+     * subito: è lo stato storico. Sotto i 992px diventa un cassetto sovrapposto
+     * (styles/mobile.css) e partire aperto significherebbe presentare
+     * l'applicazione con un pannello informativo che copre la pagina prima
+     * ancora che si sia visto di che pagina si tratta.
+     *
+     * `matchMedia` e non un controllo sulla larghezza: è la stessa soglia del
+     * foglio di stile, scritta una volta e senza il rischio che le due si
+     * separino.
+     */
+    const [rightPanelOpen, setRightPanelOpen] = useState(
+        () => typeof window === "undefined"
+            || typeof window.matchMedia !== "function"
+            || !window.matchMedia("(max-width: 991.98px)").matches
+    );
+
+    // Sotto i 992px il binario di navigazione è un cassetto sovrapposto. Lo
+    // stato sta qui e non dentro LeftNav perché il pulsante che lo apre vive
+    // nella barra in alto: due componenti sullo stesso interruttore.
+    const [navOpen, setNavOpen] = useState(false);
+
+    // Sorvegliato da ResponsiveTables per etichettare le celle delle tabelle.
+    const contentRef = useRef(null);
 
     // ========================================
     // State - Theme
@@ -532,6 +559,16 @@ export default function AppShell({ initialUser, onLogout }) {
     }, [activeId, activePage]);
 
     // ========================================
+    // Effect - Chiudi il cassetto cambiando pagina
+    // ========================================
+
+    // Il cassetto copre la pagina: lasciarlo aperto passando da una voce
+    // all'altra nasconderebbe proprio la schermata appena scelta.
+    useEffect(() => {
+        setNavOpen(false);
+    }, [activeId]);
+
+    // ========================================
     // Render - Loading State
     // ========================================
 
@@ -627,6 +664,8 @@ export default function AppShell({ initialUser, onLogout }) {
                             setNavContext(null); // Reset context on manual nav
                             setNavAction(null); // Reset action on manual nav
                         }}
+                        open={navOpen}
+                        onClose={() => setNavOpen(false)}
                     />
 
                     {/* Main Content Area */}
@@ -634,6 +673,8 @@ export default function AppShell({ initialUser, onLogout }) {
                         {/* Top Header */}
                         <TopHeader
                             title={title}
+                            navOpen={navOpen}
+                            onMenuToggle={() => setNavOpen((open) => !open)}
                             actions={
                                 <>
                                     {headerActions}
@@ -650,11 +691,25 @@ export default function AppShell({ initialUser, onLogout }) {
                         />
 
                         {/* Content Section */}
-                        <section className="jl-content">
+                        <section className="jl-content" ref={contentRef}>
                             {/* Page Content */}
                             <div className="jl-page" id="main-content">
                                 <PageComponent shell={shell} />
                             </div>
+
+                            <ResponsiveTables rootRef={contentRef} />
+
+                            {/* Sfondo del pannello di contesto: esiste solo
+                                sotto i 992px, dove il pannello si sovrappone al
+                                contenuto invece di affiancarlo. Senza, l'unico
+                                modo di chiuderlo sarebbe ritrovare il suo
+                                pulsante nella barra in alto, che il pannello
+                                stesso copre a metà. */}
+                            <div
+                                className={"jl-rightpanel-backdrop " + (rightPanelOpen ? "show" : "")}
+                                onClick={() => setRightPanelOpen(false)}
+                                aria-hidden="true"
+                            />
 
                             {/* Right Panel */}
                             <aside className={"jl-rightpanel " + (rightPanelOpen ? "" : "closed")}>

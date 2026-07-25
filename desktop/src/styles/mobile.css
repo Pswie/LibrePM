@@ -1,0 +1,523 @@
+/* ============================================================================
+   LibrePM — strato responsive
+   ============================================================================
+
+   La sezione bandi è nata come applicazione desktop Electron e ne aveva
+   conservato le misure: binario laterale sempre aperto, un pannello di contesto
+   a destra, tabelle larghe, controlli pensati per il puntatore. Su un telefono
+   restava un'applicazione da scrivania vista attraverso una feritoia.
+
+   Questo foglio la rende usabile con il pollice senza riscrivere trentatré
+   pagine — la stessa scelta già fatta per il tema (styles/adf-theme.css) e per
+   la stessa ragione: agire sul comportamento del layout costa un file, rifare
+   le schermate una per una costa un cantiere.
+
+   È caricato da entrambi i punti d'ingresso, Electron e web: qui non c'è nulla
+   di estetico da tenere separato, solo il comportamento sotto una certa
+   larghezza. L'applicazione desktop a finestra piena non incontra mai queste
+   regole; se qualcuno stringe la finestra, ne guadagna.
+
+   Soglie, una sola volta e sempre le stesse:
+
+     ≤ 991.98px  il binario laterale diventa un cassetto sovrapposto e il
+                 pannello di contesto si chiude.
+     ≤ 767.98px  telefono: le tabelle diventano schede impilate, i controlli
+                 crescono fino alla misura del dito.
+     ≤ 575.98px  telefono stretto: si recupera ogni millimetro di margine.
+
+   I 44px minimi dei bersagli touch sono la soglia raccomandata dalle WCAG 2.2
+   (2.5.8 Target Size) e dalle linee guida Apple e Google.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Fondamenta
+   -------------------------------------------------------------------------
+   librepm-shell.css fissa `html, body, #root { height: 100% }`. Su un telefono
+   il 100% si misura sul viewport grande, quello a barra degli indirizzi
+   ritratta: finché la barra è estesa il fondo dell'applicazione resta sotto il
+   bordo dello schermo. `dvh` segue il viewport reale. La riga con `vh` resta
+   prima come ripiego per i browser che non conoscono `dvh`. */
+
+html,
+body,
+#root {
+  height: 100vh;
+  height: 100dvh;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.jl-root {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Le immagini senza vincolo sono la causa più comune di scorrimento
+   orizzontale. */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   2. Bersagli touch e campi
+   -------------------------------------------------------------------------
+   `pointer: coarse` prende anche i tablet e i portatili con schermo tattile,
+   dove il dito è il puntatore vero anche se la finestra è larga. */
+
+@media (max-width: 767.98px), (pointer: coarse) {
+  .btn:not(.btn-close):not(.btn-link) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* librepm-shell.css stringe `.btn-sm` a 0.25rem di imbottitura verticale:
+     sono bottoni alti una trentina di pixel, e nella barra in alto ce ne sono
+     tre di fila. */
+  .btn-sm {
+    min-height: 44px;
+    padding-inline: 0.75rem;
+  }
+
+  .btn-close {
+    min-width: 44px;
+    min-height: 44px;
+    background-position: center;
+  }
+
+  .btn-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .list-group-item-action,
+  .dropdown-item,
+  .nav-link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* 16px esatti, non 1rem: sotto questa soglia iOS ingrandisce la pagina al
+     primo tocco su un campo e non la rimpicciolisce più. Vale anche per le
+     varianti `-sm`, che nelle tabelle del planner sono la norma. */
+  .form-control,
+  .form-select,
+  .form-control-sm,
+  .form-select-sm,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  .form-control,
+  .form-select {
+    min-height: 44px;
+  }
+
+  textarea.form-control {
+    min-height: 88px;
+  }
+
+  .form-check-input {
+    width: 1.35em;
+    height: 1.35em;
+    margin-top: 0.15em;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   3. Guscio: contenuto e pannello di contesto
+   -------------------------------------------------------------------------
+   `.jl-content` è una riga flex con dentro `.jl-page` (la pagina) e
+   `.jl-rightpanel` (il pannello di contesto). Su schermo stretto due colonne
+   non ci stanno: il pannello esce dal flusso e diventa un cassetto da destra,
+   come il binario laterale lo diventa da sinistra. */
+
+@media (max-width: 767.98px) {
+  .jl-page {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Il pannello di contesto sovrapposto.
+
+     Il foglio storico ci provava già, ma la regola non poteva funzionare:
+     `.jl-rightpanel.closed` azzera larghezza e imbottitura, e su un elemento
+     largo zero il `translateX(100%)` aggiunto qui sotto i 768px non sposta
+     niente. Il pannello spariva per via della larghezza nulla — e da aperto
+     restava una colonna fissa a 240px sopra il contenuto, senza sfondo, senza
+     modo di chiuderlo se non ritrovando il suo pulsante nella barra in alto.
+
+     Qui la larghezza torna piena e a nascondere è la trasformazione, come per
+     un cassetto vero. */
+  .jl-content > .jl-rightpanel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1046;
+    width: min(86vw, 320px);
+    min-width: 0;
+    max-width: 320px;
+    padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
+    transform: translateX(0);
+    visibility: visible;
+    opacity: 1;
+    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1), visibility 0s;
+  }
+
+  .jl-content > .jl-rightpanel.closed {
+    width: min(86vw, 320px);
+    min-width: 0;
+    max-width: 320px;
+    padding: 1rem;
+    opacity: 1;
+    transform: translateX(100%);
+    /* Non basta spostarlo: un pannello fuori schermo ma visibile resta
+       nell'ordine di tabulazione e il fuoco ci finisce alla cieca. */
+    visibility: hidden;
+    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1),
+                visibility 0s linear 0.28s;
+  }
+
+  .jl-rightpanel-backdrop.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1041;
+    background: rgba(10, 16, 12, 0.5);
+  }
+}
+
+/* Sopra i 992px il pannello affianca il contenuto e non c'è niente da oscurare. */
+.jl-rightpanel-backdrop {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Testate di pagina e barre di comando
+   -------------------------------------------------------------------------
+   Le pagine aprono quasi tutte con `d-flex justify-content-between`: titolo a
+   sinistra, bottoni a destra. Su schermo stretto le due parti si comprimono a
+   vicenda finché il titolo va a capo lettera per lettera. Farle andare a capo
+   basta, e non tocca il markup di trentatré pagine. */
+
+@media (max-width: 767.98px) {
+  .jl-page .d-flex.justify-content-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* I gruppi di bottoni delle barre strumenti vanno a capo invece di uscire. */
+  .jl-page .btn-group,
+  .jl-page .btn-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .jl-page .card-header,
+  .jl-page .card-body {
+    padding: 1rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   5. Tabelle → schede
+   -------------------------------------------------------------------------
+   Sotto i 768px una tabella a sei colonne non si legge: scorrerla di lato
+   significa perdere di vista a quale riga appartiene il valore che si sta
+   guardando. Qui ogni riga diventa una scheda e ogni cella una coppia
+   etichetta/valore.
+
+   L'etichetta arriva da `data-label`, che non è scritto nel markup: lo applica
+   `components/ResponsiveTables.jsx` copiando l'intestazione di colonna. Le
+   trentasei tabelle sparse in undici pagine restano così com'erano — e se quel
+   componente non gira, si ricade sullo scorrimento orizzontale, cioè sul
+   comportamento di prima.
+
+   La classe `jl-cards-sm` la mette lo stesso componente: senza `data-label`
+   queste regole non devono attivarsi, o resterebbero valori senza nome. */
+
+@media (max-width: 767.98px) {
+  .table-responsive.jl-cards-host {
+    overflow-x: visible;
+  }
+
+  table.jl-cards-sm,
+  table.jl-cards-sm > tbody {
+    display: block;
+    width: 100%;
+  }
+
+  table.jl-cards-sm > thead {
+    display: none;
+  }
+
+  table.jl-cards-sm > tbody > tr {
+    display: block;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--jl-border-color, rgba(0, 0, 0, 0.1));
+    border-radius: 0.75rem;
+    background: var(--jl-bg-card, transparent);
+  }
+
+  table.jl-cards-sm > tbody > tr:last-child {
+    margin-bottom: 0;
+  }
+
+  table.jl-cards-sm > tbody > tr > td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    width: auto !important;
+    /* `!important` contro le utility di allineamento usate nella vista a
+       tabella (`text-end`, `text-center`): lì incolonnano, qui
+       disallineerebbero le coppie etichetta/valore. */
+    padding: 0.55rem 0 !important;
+    text-align: left !important;
+    border: 0;
+    border-bottom: 1px solid var(--jl-border-color, rgba(0, 0, 0, 0.07));
+    white-space: normal !important;
+  }
+
+  table.jl-cards-sm > tbody > tr > td:last-child {
+    border-bottom: 0;
+  }
+
+  table.jl-cards-sm > tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 8.5rem;
+    padding-top: 0.15rem;
+    color: var(--jl-text-muted, #6c757d);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  table.jl-cards-sm > tbody > tr > td:not([data-label])::before,
+  table.jl-cards-sm > tbody > tr > td[data-label=""]::before {
+    content: none;
+  }
+
+  /* La riga "nessun risultato" usa `colspan` e non è una scheda. */
+  table.jl-cards-sm > tbody > tr:has(> td[colspan]) {
+    border: 0;
+    padding: 0;
+    background: none;
+  }
+
+  table.jl-cards-sm > tbody > tr > td[colspan] {
+    display: block;
+    border-bottom: 0;
+    text-align: center !important;
+  }
+
+  table.jl-cards-sm > tbody > tr > td[colspan]::before {
+    content: none;
+  }
+
+  /* Senza `min-width: 0` un elemento flex non scende sotto la larghezza del
+     proprio contenuto: è così che un titolo di progetto lungo allargava la
+     pagina intera. `anywhere` permette di spezzare dentro la parola, che per
+     un indirizzo di posta senza spazi è l'unico modo. */
+  table.jl-cards-sm > tbody > tr > td > *,
+  table.jl-cards-sm > tbody > tr > td .d-flex {
+    min-width: 0;
+  }
+
+  table.jl-cards-sm > tbody > tr > td,
+  table.jl-cards-sm > tbody > tr > td * {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Telefoni stretti: etichetta sopra il valore. Con 8.5rem di etichetta più il
+   divario, su 320px di schermo al valore restava un centinaio di pixel. */
+@media (max-width: 479.98px) {
+  table.jl-cards-sm > tbody > tr > td {
+    flex-direction: column;
+    /* flex-start e non stretch: un'etichetta di stato stirata su tutta la
+       scheda diventa una fascia colorata che sembra una barra di avanzamento. */
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+
+  table.jl-cards-sm > tbody > tr > td::before {
+    flex: none;
+  }
+
+  table.jl-cards-sm > tbody > tr > td:last-child {
+    align-items: stretch;
+    padding-top: 0.75rem !important;
+  }
+}
+
+/* La tabella del planner è dichiarata a 900px minimi: è una griglia di
+   modifica, con campi editabili in ogni cella, e a schede perderebbe il senso.
+   Resta a scorrimento, ma almeno con lo slancio del dito. */
+.table-responsive,
+.planner-table-container {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 767.98px) {
+  .planner-table-container table {
+    /* 900px erano tarati sulla finestra desktop: su un telefono obbligano a un
+       trascinamento lunghissimo per arrivare in fondo alla riga. */
+    min-width: 720px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6. Finestre modali
+   ------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+  .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    min-height: 100%;
+  }
+
+  .modal-content {
+    min-height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .modal-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    background: var(--jl-bg-card, #fff);
+  }
+
+  .modal-footer > .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   7. Kanban, Gantt, calendario
+   -------------------------------------------------------------------------
+   Queste tre viste sono spaziali per natura: una bacheca a colonne o un
+   diagramma temporale schiacciati in una colonna sola non sono più quella
+   vista. Restano a scorrimento orizzontale, che qui è la forma giusta e non
+   una rinuncia — ma le colonne si restringono a una misura da telefono. */
+
+@media (max-width: 767.98px) {
+  .kanban-board {
+    padding: 0.75rem;
+    gap: 0.75rem;
+    /* Ogni colonna si aggancia al bordo: si scorre di una colonna alla volta
+       invece di fermarsi a metà fra due. */
+    scroll-snap-type: x mandatory;
+  }
+
+  .kanban-column {
+    min-width: min(80vw, 280px);
+    max-width: min(80vw, 300px);
+    scroll-snap-align: start;
+  }
+
+  .calendar-page {
+    padding: 0.75rem;
+  }
+
+  /* react-big-calendar mette la barra strumenti su una riga sola. */
+  .rbc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .rbc-toolbar .rbc-btn-group {
+    display: flex;
+    justify-content: center;
+  }
+
+  .rbc-toolbar .rbc-btn-group > button {
+    min-height: 44px;
+    flex: 1;
+  }
+
+  /* La vista mensile sotto una certa larghezza diventa illeggibile: le celle
+     si accorciano ma il testo no. */
+  .rbc-month-view {
+    min-height: 480px;
+  }
+
+  .rbc-event {
+    font-size: 0.75rem;
+  }
+
+  /* Le note sono due colonne: elenco a sinistra, editor a destra. */
+  .notes-page {
+    flex-direction: column;
+  }
+
+  .notes-sidebar {
+    width: 100% !important;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+}
+
+/* I grafici Chart.js dentro una colonna che si restringe: senza un'altezza
+   minima il contenitore collassa e il grafico sparisce senza errori. */
+@media (max-width: 767.98px) {
+  canvas {
+    max-height: 320px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   8. Movimento
+   ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

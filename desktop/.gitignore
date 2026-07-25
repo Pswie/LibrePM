@@ -21,6 +21,9 @@ dist-web
 # Creata da `vercel` in locale: contiene gli identificativi del progetto.
 .vercel
 
+# Profili Chrome e schermate prodotti da scripts/mobile-smoke.mjs
+.mobile-smoke
+
 # LibrePm Specific Build Artifacts
 backend-libs/
 build-resources/

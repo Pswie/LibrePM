@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Logo from "../assets/Logo.svg";
 import { useTranslation } from 'react-i18next';
 
@@ -11,21 +11,99 @@ import { useTranslation } from 'react-i18next';
  * - Indicatore pagina attiva
  * - Collapsibile
  *
+ * Sopra i 992px è la colonna fissa di sempre, con il suo pulsante per
+ * restringerla a sole icone. Sotto, esce dal flusso e diventa un cassetto che
+ * scorre sopra il contenuto: 220px fissi su un telefono da 390 sono più di
+ * metà schermo occupata da un menu, e le voci qui sono ventitré.
+ *
+ * Apertura e chiusura le governa `AppShell`, non questo componente: il pulsante
+ * che apre sta nella barra in alto, e due stati separati per la stessa cosa si
+ * disallineano al primo caso limite.
+ *
  * @author Lorenzo DM
  * @since 0.2.0
  * @updated 0.8.5 - Sidebar collapsibile
+ * @updated Angeli del Futuro - cassetto sotto i 992px
+ *
+ * @param {boolean}  props.open Cassetto aperto (ha effetto solo sotto i 992px).
+ * @param {function} props.onClose Richiesta di chiusura (scelta, sfondo, Esc).
  */
-export default function LeftNav({ items, activeId, onSelect }) {
+export default function LeftNav({ items, activeId, onSelect, open = false, onClose }) {
     const { t } = useTranslation();
     const [collapsed, setCollapsed] = useState(false);
+    const panelRef = useRef(null);
 
     // Filtra items visibili (nasconde settings dalla nav principale)
     const visibleItems = useMemo(() => {
         return items.filter(item => item.id !== "settings");
     }, [items]);
 
+    // Esc chiude il cassetto: è la scorciatoia che si prova per prima quando un
+    // pannello copre la pagina. AppShell usa Esc anche per il pannello destro,
+    // ma là l'ascoltatore è sul window e questo si ferma prima solo se il
+    // cassetto è aperto.
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') onClose?.();
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [open, onClose]);
+
+    // Con il cassetto aperto la pagina sotto non deve scorrere: su iOS, senza
+    // questo, il dito che scorre sul menu trascina il contenuto retrostante.
+    useEffect(() => {
+        if (!open) return undefined;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = previous; };
+    }, [open]);
+
+    // All'apertura il fuoco entra nel cassetto, altrimenti chi naviga da
+    // tastiera continuerebbe a tabulare nella pagina che il menu sta coprendo.
+    //
+    // Il doppio rinvio non è prudenza: da chiuso il pannello è
+    // `visibility: hidden`, e `focus()` su un elemento invisibile viene ignorato
+    // senza errore. Un solo `requestAnimationFrame` non basta — le sue chiamate
+    // girano prima del ricalcolo degli stili di quel fotogramma.
+    useEffect(() => {
+        if (!open) return undefined;
+        let inner = 0;
+        const outer = requestAnimationFrame(() => {
+            inner = requestAnimationFrame(() => {
+                panelRef.current?.querySelector('.jl-nav-link')?.focus();
+            });
+        });
+        return () => {
+            cancelAnimationFrame(outer);
+            if (inner) cancelAnimationFrame(inner);
+        };
+    }, [open]);
+
+    const handleSelect = (id) => {
+        onSelect(id);
+        // Sul telefono il cassetto copre la pagina: lasciarlo aperto dopo la
+        // scelta significa nascondere proprio ciò che si è appena aperto.
+        onClose?.();
+    };
+
     return (
-        <nav className={`jl-sidebar ${collapsed ? "collapsed" : ""}`}>
+        <>
+            {/* Lo sfondo esiste solo da cassetto aperto: sopra i 992px il CSS lo
+                tiene comunque fuori gioco. */}
+            <div
+                className={`jl-sidebar-backdrop ${open ? "show" : ""}`}
+                onClick={onClose}
+                aria-hidden="true"
+            />
+
+            <nav
+                id="jl-primary-nav"
+                ref={panelRef}
+                className={`jl-sidebar ${collapsed ? "collapsed" : ""} ${open ? "open" : ""}`}
+                aria-label={t("Navigation")}
+            >
             {/* Logo Header */}
             <div className="jl-sidebar-header">
                 <div className="jl-logo">
@@ -42,6 +120,17 @@ export default function LeftNav({ items, activeId, onSelect }) {
                     />
                     {!collapsed && <span className="jl-logo-text">LibrePM</span>}
                 </div>
+
+                {/* Chiusura esplicita: sul telefono il gesto di trascinamento non
+                    è ovvio e toccare fuori non lo scopre nessuno. */}
+                <button
+                    type="button"
+                    className="jl-drawer-close"
+                    onClick={onClose}
+                    aria-label={t("Close")}
+                >
+                    <i className="bi bi-x-lg"></i>
+                </button>
             </div>
 
             {/* Navigation Items (scrollable) */}
@@ -51,8 +140,9 @@ export default function LeftNav({ items, activeId, onSelect }) {
                         <li key={item.id} className="jl-nav-item">
                             <button
                                 className={`jl-nav-link ${activeId === item.id ? "active" : ""}`}
-                                onClick={() => onSelect(item.id)}
+                                onClick={() => handleSelect(item.id)}
                                 title={collapsed ? item.label : undefined}
+                                aria-current={activeId === item.id ? "page" : undefined}
                             >
                                 <i className={`bi ${item.icon || "bi-circle"} jl-nav-icon`}></i>
                                 {!collapsed && <span className="jl-nav-label">{item.label}</span>}
@@ -227,7 +317,122 @@ export default function LeftNav({ items, activeId, onSelect }) {
                 .jl-sidebar.collapsed .jl-logo {
                     justify-content: center;
                 }
+
+                /* Sopra i 992px il cassetto non esiste. */
+                .jl-sidebar-backdrop,
+                .jl-drawer-close {
+                    display: none;
+                }
+
+                /* -----------------------------------------------------------
+                   Sotto i 992px: cassetto sovrapposto
+                   ----------------------------------------------------------- */
+                @media (max-width: 991.98px) {
+                    .jl-sidebar {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        bottom: 0;
+                        /* Un margine di schermo sulla destra fa capire che sotto
+                           c'è ancora la pagina, e dà dove toccare per chiudere. */
+                        width: min(86vw, 300px);
+                        min-width: 0;
+                        max-width: 300px;
+                        padding-left: env(safe-area-inset-left);
+                        transform: translateX(-100%);
+                        /* Nascondere davvero, non solo spostare: un pannello
+                           fuori schermo ma visibile resta nell'ordine di
+                           tabulazione e il fuoco ci finisce alla cieca. */
+                        visibility: hidden;
+                        box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
+                        transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1),
+                                    visibility 0s linear 0.28s;
+                        z-index: 1045;
+                    }
+
+                    .jl-sidebar.open {
+                        transform: translateX(0);
+                        visibility: visible;
+                        transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1),
+                                    visibility 0s;
+                    }
+
+                    /* Restringere a icone è un'idea da schermo largo: qui il
+                       cassetto o c'è o non c'è. */
+                    .jl-sidebar.collapsed {
+                        width: min(86vw, 300px);
+                        min-width: 0;
+                    }
+
+                    .jl-sidebar .jl-collapse-btn {
+                        display: none;
+                    }
+
+                    .jl-sidebar-header {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 0.5rem;
+                        padding-top: max(1rem, env(safe-area-inset-top));
+                    }
+
+                    .jl-sidebar-footer {
+                        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+                    }
+
+                    /* Ventitré voci: 44px l'una sono il minimo sotto cui il dito
+                       manca il bersaglio (WCAG 2.2, 2.5.8). */
+                    .jl-nav-link {
+                        min-height: 48px;
+                        padding: 0.85rem 1rem;
+                        font-size: 1rem;
+                    }
+
+                    .jl-nav-icon {
+                        font-size: 1.25rem;
+                    }
+
+                    .jl-drawer-close {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-shrink: 0;
+                        width: 44px;
+                        height: 44px;
+                        border: 0;
+                        border-radius: 8px;
+                        background: rgba(255, 255, 255, 0.08);
+                        color: var(--adf-rail-text-strong, #fff);
+                        font-size: 1.1rem;
+                        cursor: pointer;
+                    }
+
+                    .jl-sidebar-backdrop {
+                        display: block;
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(10, 16, 12, 0.5);
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.28s ease, visibility 0s linear 0.28s;
+                        z-index: 1040;
+                    }
+
+                    .jl-sidebar-backdrop.show {
+                        opacity: 1;
+                        visibility: visible;
+                        transition: opacity 0.28s ease, visibility 0s;
+                    }
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .jl-sidebar,
+                    .jl-sidebar-backdrop {
+                        transition: none;
+                    }
+                }
             `}</style>
-        </nav>
+            </nav>
+        </>
     );
 }
