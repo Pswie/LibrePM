@@ -25,6 +25,106 @@ state rimosse da nessun file.
 
 ---
 
+## 25 luglio 2026 (bis) — usabile dal telefono, e un accesso solo
+
+### Il layout su schermo stretto
+
+LibrePM aveva le misure della finestra desktop da cui nasce: binario laterale da
+220px sempre aperto, un pannello di contesto da 280px a destra, tabelle a sei
+colonne. Su un telefono da 390px restavano poche decine di pixel di contenuto
+utile fra due colonne di cornice.
+
+- `desktop/src/styles/mobile.css` — **nuovo**. Strato responsive caricato da
+  entrambi i punti d'ingresso: qui non c'è nulla di estetico da tenere separato
+  come il tema, solo il comportamento del layout sotto una certa larghezza.
+  L'applicazione desktop a finestra piena non incontra mai queste regole.
+  Soglie: 992px per il binario, 768px per tabelle e controlli, 480px per
+  l'impilamento delle etichette.
+- `desktop/src/layout/LeftNav.jsx` — sotto i 992px esce dal flusso e diventa un
+  cassetto sovrapposto: sfondo che oscura, chiusura con la X, con Esc, toccando
+  fuori o scegliendo una voce. Da chiuso è `visibility: hidden` e non solo
+  spostato — un pannello fuori schermo ma visibile resta nell'ordine di
+  tabulazione e il fuoco ci finisce alla cieca. All'apertura il fuoco entra nel
+  cassetto.
+- `desktop/src/layout/TopHeader.jsx` — pulsante hamburger sotto i 992px, titolo
+  troncabile, fasce di sicurezza dei telefoni con intaglio.
+- `desktop/src/layout/AppShell.jsx` — stato del cassetto (sta qui perché il
+  pulsante che lo apre vive nella barra in alto), e **il pannello di contesto
+  ora parte chiuso su schermo stretto**: partire aperto significava presentare
+  l'applicazione con un pannello informativo che copre la pagina prima ancora
+  che si sia visto di che pagina si tratta.
+- Il pannello di contesto aveva già delle regole per il mobile in
+  `librepm-shell.css`, ma **non potevano funzionare**: `.jl-rightpanel.closed`
+  azzera larghezza e imbottitura, e su un elemento largo zero il
+  `translateX(100%)` non sposta niente. Da aperto restava una colonna fissa
+  sopra il contenuto, senza sfondo e senza modo di chiuderla se non ritrovando
+  il suo pulsante nella barra in alto, che il pannello stesso copre a metà. Ora
+  è un cassetto vero, con sfondo cliccabile.
+- `desktop/src/components/ResponsiveTables.jsx` — **nuovo**. Sotto i 768px ogni
+  riga di tabella diventa una scheda con coppie etichetta/valore; l'etichetta la
+  copia questo componente dall'intestazione di colonna. Copre le trentasei
+  tabelle delle undici pagine di elenco senza modificarne il markup. La griglia
+  del planner è esclusa di proposito: è una tabella di modifica, con campi
+  editabili in ogni cella, e a schede perderebbe il senso.
+- Bersagli touch a 44px e campi a 16px sotto i 768px — la seconda soglia perché
+  sotto i 16px iOS ingrandisce la pagina al primo tocco su un campo e non la
+  riporta indietro. Nessun `user-scalable=no`, che è la scorciatoia con cui di
+  solito si nasconde quel difetto rinunciando all'accessibilità.
+- Kanban, Gantt e calendario restano a scorrimento orizzontale: sono viste
+  spaziali, e schiacciarle in una colonna sola vorrebbe dire perderle. Le
+  colonne del kanban si agganciano però al bordo, così si scorre di una alla
+  volta invece di fermarsi a metà fra due.
+- `desktop/index.web.html` — `viewport-fit=cover`, `theme-color`, descrizione.
+
+### Verifica
+
+- `desktop/scripts/mobile-smoke.mjs` e `desktop/mobile-harness.html` — **nuovi**.
+  Chrome headless via protocollo DevTools, nessuna dipendenza aggiunta. Misura a
+  320, 375, 390, 768 e 1280px: scorrimento orizzontale, altezza minima dei
+  comandi raggiungibili, corpo dei campi, binario che si fa cassetto solo sotto
+  i 992, tabelle che si fanno schede solo sotto i 768, pannello di contesto che
+  non si apre da solo, apertura e chiusura di entrambi i cassetti. Si lancia con
+  `npm run test:mobile` mentre gira `npm run dev:renderer`.
+  Il banco di prova monta i componenti veri del guscio senza backend né accesso
+  Clerk, e non entra nella build di produzione: `vite.web.config.mjs` dichiara
+  un solo ingresso.
+
+> **Nota**: `npm run lint` è guasto da prima di queste modifiche —
+> `eslint.config.js` importa `eslint/config`, che esiste solo da ESLint 9,
+> mentre il `package.json` fissa la 8.57. Non è stato toccato: sistemarlo
+> significa decidere un aggiornamento maggiore di ESLint, che non è parte di
+> questo lavoro.
+
+### Una sola identità non bastava a fare un solo accesso
+
+Le tre applicazioni dell'associazione condividono l'istanza Clerk, ma stanno su
+tre domini **registrabili** diversi. La sessione di Clerk vive in un cookie, e
+`vercel.app` è nella Public Suffix List: il browser rifiuta qualunque cookie con
+`Domain=.vercel.app`. Chi entrava dal sito doveva quindi riautenticarsi qui.
+
+- `desktop/src/main.web.jsx` — questa applicazione diventa un **satellite** di
+  Clerk (`isSatellite`, `domain`, `signInUrl`), con il sito come dominio
+  primario. Attivo solo con `VITE_CLERK_PRIMARY_URL` impostata: senza,
+  l'applicazione resta autonoma con la propria schermata di accesso, che è la
+  configurazione dello sviluppo locale.
+- `desktop/src/WebAuthGate.jsx` — da satellite usa `RedirectToSignIn` invece di
+  montare `<SignIn>`. Non un `window.location` scritto a mano: quello
+  arriverebbe alla schermata di accesso del sito senza portarsi dietro il punto
+  di ritorno. L'offerta del sorgente richiesta dall'art. 13 resta visibile anche
+  su questa schermata di passaggio.
+- `desktop/vite.web.config.mjs` e `desktop/index.web.html` — nuovo segnaposto
+  `%PRIMARY_ORIGIN%` nella CSP, riempito dalla build come già accade per l'API e
+  per gli host di Clerk. Senza la variabile resta vuoto e non si apre nulla.
+
+> Perché abbia effetto serve un passaggio fuori dal codice: nel pannello Clerk
+> questo dominio va dichiarato satellite accanto al primario, e
+> `VITE_CLERK_PRIMARY_URL` va impostata fra le variabili del progetto Vercel.
+> Quando le tre aree passeranno a sottodomini dello stesso dominio registrabile
+> l'impalcatura si potrà smontare: fra sottodomini Clerk condivide la sessione
+> da sé.
+
+---
+
 ## 25 luglio 2026 — da applicazione desktop a sezione web condivisa
 
 LibrePM nasce local-first: un backend Spring Boot su SQLite avviato da Electron,

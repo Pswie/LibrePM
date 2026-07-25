@@ -2,7 +2,19 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover porta la pagina sotto l'intaglio della fotocamera e la
+      barra gestuale dei telefoni recenti; le fasce riservate le recuperano le
+      regole `env(safe-area-inset-*)` in src/styles/mobile.css e nel guscio.
+      Senza `cover` restano due bande di colore fisso ai bordi.
+
+      Nessun `maximum-scale` e nessun `user-scalable=no`: impedire lo zoom è la
+      scorciatoia con cui di solito si nasconde il problema dei campi sotto i
+      16px, ed è un requisito di accessibilità mancato (WCAG 1.4.4). I campi
+      sono già a 16px, quindi iOS non ingrandisce da solo, e chi ha bisogno di
+      ingrandire può farlo.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!--
       La CSP della build web è diversa da quella di index.html, che ammette
       connect-src verso localhost perché nel desktop il backend gira in locale.
@@ -10,12 +22,26 @@
       localhost non va lasciato aperto: su una pagina pubblica sarebbe un modo
       per far parlare il browser di chi visita con servizi sulla sua macchina.
 
-      I due host non sono scritti a mano: li sostituisce Vite in fase di build
-      partendo da VITE_API_BASE_URL e dalla chiave Clerk (vedi
-      vite.web.config.mjs), così non possono divergere dalla configurazione vera.
+      Gli host non sono scritti a mano: li sostituisce Vite in fase di build
+      partendo da VITE_API_BASE_URL, dalla chiave Clerk e da
+      VITE_CLERK_PRIMARY_URL (vedi vite.web.config.mjs), così non possono
+      divergere dalla configurazione vera.
+
+      %PRIMARY_ORIGIN% è il sito, dominio primario di Clerk: da satellite questa
+      applicazione ci dialoga per riconoscere un accesso già avvenuto. Lo
+      scambio passa da redirect di primo livello, che nessuna direttiva qui
+      intercetta, ma `satelliteAutoSync` può anche interrogarlo direttamente:
+      senza `connect-src` la sincronia fallirebbe in silenzio e si tornerebbe a
+      chiedere l'accesso due volte. Senza la variabile il segnaposto resta
+      vuoto e non si apre nulla.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' %CLERK_HOSTS%; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' %API_ORIGIN% %CLERK_HOSTS%; img-src 'self' data: blob: %CLERK_HOSTS%; font-src 'self' data:; frame-src 'self' %CLERK_HOSTS%;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' %CLERK_HOSTS%; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' %API_ORIGIN% %CLERK_HOSTS% %PRIMARY_ORIGIN%; img-src 'self' data: blob: %CLERK_HOSTS%; font-src 'self' data:; frame-src 'self' %CLERK_HOSTS% %PRIMARY_ORIGIN%; form-action 'self' %PRIMARY_ORIGIN%;" />
     <title>Bandi e progetti — Angeli del Futuro</title>
+    <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Bandi" />
+    <meta name="description" content="Registro dei bandi e dei progetti di Angeli del Futuro." />
     <link rel="icon" type="image/png" href="/assets/icon.png" />
 </head>
 <body>

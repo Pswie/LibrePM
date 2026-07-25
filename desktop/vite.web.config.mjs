@@ -27,6 +27,10 @@ export default defineConfig(({ mode }) => {
 
     const apiBaseUrl = env.VITE_API_BASE_URL || '';
     const publishableKey = env.VITE_CLERK_PUBLISHABLE_KEY || '';
+    // Il sito, che per Clerk è il dominio primario: da satellite questa
+    // applicazione ci dialoga per riconoscere un accesso già avvenuto. Vuoto
+    // quando la variabile non c'è, e la CSP non si apre verso nessuno.
+    const primaryOrigin = originOf(env.VITE_CLERK_PRIMARY_URL || '');
 
     return {
         plugins: [
@@ -40,7 +44,8 @@ export default defineConfig(({ mode }) => {
                 transformIndexHtml(html) {
                     return html
                         .replace(/%API_ORIGIN%/g, originOf(apiBaseUrl))
-                        .replace(/%CLERK_HOSTS%/g, clerkHosts(publishableKey));
+                        .replace(/%CLERK_HOSTS%/g, clerkHosts(publishableKey))
+                        .replace(/%PRIMARY_ORIGIN%/g, primaryOrigin);
                 },
             },
         ],

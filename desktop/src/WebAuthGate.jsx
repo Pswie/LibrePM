@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+    RedirectToSignIn,
     SignIn,
     useAuth,
     useOrganization,
@@ -31,8 +32,16 @@ import { ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from "./branding";
  *
  * @author Angeli del Futuro (fork di LibrePM)
  * @since 0.2.0
+ *
+ * @param {boolean} [props.isSatellite] Vero quando questa applicazione è un
+ *   satellite di Clerk, cioè quando la sessione è tenuta dal sito e non da qui
+ *   (configurazione in {@code main.web.jsx}). In quel caso chi non è
+ *   autenticato non deve vedere un secondo modulo di accesso: verrebbe chiesta
+ *   una seconda volta la stessa credenziale, che è il difetto che i satelliti
+ *   eliminano. Si va invece al primario, che riconosce la sessione già aperta e
+ *   rimanda indietro senza mostrare nulla.
  */
-export default function WebAuthGate() {
+export default function WebAuthGate({ isSatellite = false }) {
     const { isLoaded: authLoaded, isSignedIn, getToken, signOut } = useAuth();
     const { organization } = useOrganization();
     const { isLoaded: orgsLoaded, setActive, userMemberships } = useOrganizationList({
@@ -102,6 +111,24 @@ export default function WebAuthGate() {
     }
 
     if (!isSignedIn) {
+        // Da satellite l'accesso è del primario. RedirectToSignIn e non un
+        // window.location scritto a mano: costruisce l'indirizzo passando dallo
+        // scambio di Clerk, che è ciò che trasferisce la sessione e riporta qui.
+        // Un redirect artigianale arriverebbe alla schermata di accesso del
+        // sito senza portarsi dietro il punto di ritorno.
+        //
+        // L'offerta del sorgente resta anche qui: l'articolo 13 dell'AGPL la
+        // vuole raggiungibile da chi interagisce col programma, e questa pagina
+        // compare per un istante prima del rimando.
+        if (isSatellite) {
+            return (
+                <Centered title="Riconoscimento dell’accesso…">
+                    <SourceOffer />
+                    <RedirectToSignIn />
+                </Centered>
+            );
+        }
+
         return (
             <div className="d-flex flex-column align-items-center justify-content-center min-vh-100 p-3">
                 <SignIn routing="hash" />
