@@ -4,6 +4,7 @@ import com.lorenzodm.librepm.api.exception.BadRequestException;
 import com.lorenzodm.librepm.api.exception.ResourceNotFoundException;
 import com.lorenzodm.librepm.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,20 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.UUID;
 
+/**
+ * Gli allegati su disco.
+ *
+ * <p>Fuori dal profilo {@code cloud}, cioè dove il disco è vero e sopravvive ai
+ * riavvii: il desktop scrive sotto la home dell'utente ed è la scelta giusta.
+ *
+ * <p>Su Cloud Run subentra {@link DatabaseFileStorageService}, perché lì
+ * {@code /tmp} è un disco in memoria che sparisce a ogni riavvio dell'istanza e
+ * consuma la RAM del contenitore. Le due implementazioni non convivono mai —
+ * senza questo profilo Spring troverebbe due candidati per la stessa
+ * interfaccia e non partirebbe.
+ */
 @Service
+@Profile("!cloud")
 public class LocalFileStorageService implements FileStorageService {
 
     @Value("${librepm.assets.storage-path}")
