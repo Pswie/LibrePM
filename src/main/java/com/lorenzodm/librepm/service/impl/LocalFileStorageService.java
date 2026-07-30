@@ -4,10 +4,8 @@ import com.lorenzodm.librepm.api.exception.BadRequestException;
 import com.lorenzodm.librepm.api.exception.ResourceNotFoundException;
 import com.lorenzodm.librepm.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,19 +18,23 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Gli allegati su disco.
+ * Gli allegati su disco. <strong>Non più in uso.</strong>
  *
- * <p>Fuori dal profilo {@code cloud}, cioè dove il disco è vero e sopravvive ai
- * riavvii: il desktop scrive sotto la home dell'utente ed è la scelta giusta.
+ * <p>{@code @Service} è stato tolto di proposito: da qui gli allegati vanno nel
+ * database, sempre e ovunque — vedi {@link DatabaseFileStorageService}. Con
+ * l'annotazione, Spring troverebbe due candidati per la stessa interfaccia e
+ * non partirebbe.
  *
- * <p>Su Cloud Run subentra {@link DatabaseFileStorageService}, perché lì
- * {@code /tmp} è un disco in memoria che sparisce a ogni riavvio dell'istanza e
- * consuma la RAM del contenitore. Le due implementazioni non convivono mai —
- * senza questo profilo Spring troverebbe due candidati per la stessa
- * interfaccia e non partirebbe.
+ * <p>La classe resta perché è di monte: cancellarla allargherebbe la superficie
+ * di conflitto a ogni merge, e non guadagnerebbe nulla. Se un domani si passa a
+ * un archivio oggetti, questa è la traccia di come era fatto il primo giro.
+ *
+ * <p>Il motivo del cambio: su Cloud Run i file finivano in {@code /tmp}, che è
+ * un disco in memoria — sparisce a ogni riavvio e consuma la RAM del
+ * contenitore. Sul desktop il disco è vero, ma un allegato che sta in un posto
+ * diverso a seconda di dove gira il programma è un allegato che si perde nel
+ * passaggio: il backup del database non se lo porta dietro.
  */
-@Service
-@Profile("!cloud")
 public class LocalFileStorageService implements FileStorageService {
 
     @Value("${librepm.assets.storage-path}")

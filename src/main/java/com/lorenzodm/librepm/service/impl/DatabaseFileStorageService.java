@@ -7,7 +7,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -22,28 +21,31 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Gli allegati conservati nel database invece che su disco.
+ * Gli allegati conservati nel database. <strong>Sempre, ovunque.</strong>
  *
- * <p><strong>Perché esiste.</strong> Nel profilo {@code cloud} la
- * configurazione manda i file in {@code /tmp/librepm}, e il commento accanto
- * dice il vero: su Cloud Run il filesystem è effimero e la home può non essere
- * scrivibile. Ma {@code /tmp} lì è un disco in memoria — sparisce a ogni
- * riavvio dell'istanza <em>e</em> consuma la RAM del contenitore, quindi un
- * allegato grosso non si limita a svanire: può far morire il servizio. Intanto
- * {@code assets.file_path} continuava a indicare un file che non c'era più.
+ * <p><strong>Perché.</strong> Nel profilo {@code cloud} la configurazione
+ * mandava i file in {@code /tmp/librepm}, e il commento accanto diceva il vero:
+ * su Cloud Run il filesystem è effimero e la home può non essere scrivibile. Ma
+ * {@code /tmp} lì è un disco in memoria — sparisce a ogni riavvio dell'istanza
+ * <em>e</em> consuma la RAM del contenitore, quindi un allegato grosso non si
+ * limita a svanire: può far morire il servizio.
  *
- * <p><strong>Perché solo qui.</strong> Nel profilo desktop LibrePM scrive in
- * una cartella vera sotto la home dell'utente, che sopravvive ai riavvii: lì
- * {@link LocalFileStorageService} è la scelta giusta e resta attiva. Le due
- * implementazioni non convivono — le separa il profilo.
+ * <p><strong>Perché anche sul desktop, dove il disco è vero.</strong> Perché un
+ * allegato che sta in un posto diverso a seconda di dove gira il programma è un
+ * allegato che si perde nel passaggio: il backup del database non se lo porta
+ * dietro, la sincronizzazione fra locale e cloud nemmeno, e chi esporta i dati
+ * si ritrova le righe senza i file. Un posto solo significa che «ho una copia
+ * del database» vuol dire davvero avere tutto.
  *
  * <p><strong>Non è il posto definitivo.</strong> Un archivio oggetti (S3, R2,
  * Scaleway) lo è. Ma è un fornitore in più, un contratto di trattamento dati in
  * più e una regione in più da verificare; nel frattempo il database sopravvive
  * ai riavvii, finisce nei backup ed è già dove stanno i dati.
+ *
+ * <p>{@link LocalFileStorageService} resta nel codice ma non è più un bean: la
+ * sua storia è nel commento che porta.
  */
 @Service
-@Profile("cloud")
 public class DatabaseFileStorageService implements FileStorageService {
 
     @PersistenceContext

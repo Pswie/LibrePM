@@ -72,7 +72,26 @@ public class EventJournalServiceImpl implements EventJournalService {
         return deleted;
     }
 
-    @Scheduled(cron = "0 0 3 * * *") // Run daily at 3 AM
+    /**
+     * La pulizia automatica del giornale eventi.
+     *
+     * <p><strong>Spenta per impostazione predefinita.</strong> Girava ogni notte
+     * alle tre e cancellava tutto quello che aveva più di
+     * {@value #DEFAULT_RETENTION_DAYS} giorni — una scelta di conservazione
+     * scritta nel codice da chi ha realizzato il programma, non dall'ente che lo
+     * usa. Qui i dati si tengono finché una persona non decide di toglierli,
+     * quindi una cancellazione che avviene da sola alle tre di notte è
+     * esattamente ciò che non deve succedere.
+     *
+     * <p>Il metodo {@link #cleanup(int)} resta e funziona: si chiama quando lo
+     * si vuole, con il numero di giorni che si vuole. È la differenza fra una
+     * cancellazione decisa e una che capita.
+     *
+     * <p>Per riaccenderla basta {@code librepm.event-journal.cleanup-cron} nella
+     * configurazione. Il valore predefinito {@code -} è la disattivazione
+     * prevista da Spring, non un espediente.
+     */
+    @Scheduled(cron = "${librepm.event-journal.cleanup-cron:-}")
     public void scheduledCleanup() {
         cleanup(DEFAULT_RETENTION_DAYS);
     }
