@@ -3,11 +3,14 @@
 -- ---------------------------------------------------------------------------
 -- Il problema, che era già noto
 -- ---------------------------------------------------------------------------
--- Nel profilo `cloud` la configurazione dice:
+-- Nel profilo `cloud` la configurazione mandava i file in /tmp/librepm, con
+-- accanto questo commento: «Su Cloud Run il filesystem è effimero e la home
+-- può non essere scrivibile».
 --
---     # Su Cloud Run il filesystem è effimero e la home può non essere scrivibile.
---     data:
---       path: ${LIBREPM_DATA_PATH:/tmp/librepm}
+-- (La riga di configurazione non è riportata alla lettera di proposito: Flyway
+-- sostituisce i segnaposto della forma dollaro-graffa anche dentro i commenti,
+-- e citarla per intero impediva l'avvio dell'applicazione con «No value
+-- provided for placeholder». Un commento che rompe una migrazione.)
 --
 -- Il commento è esatto e la scelta era consapevole: `/tmp` è l'unico posto
 -- scrivibile. Ma su Cloud Run `/tmp` è un disco in memoria — sparisce a ogni
