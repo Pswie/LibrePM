@@ -1,0 +1,39 @@
+# Che cosa tenere fuori dal contesto di build del Dockerfile.
+#
+# Serve anche quando si costruisce in locale con `docker build`, dove
+# `.gcloudignore` non viene letto: senza, il contesto comprende la storia git e
+# la cache di Gradle, e il primo passo del build diventa il più lento.
+#
+# Il Dockerfile copia soltanto gradlew, gradle/, settings.gradle, build.gradle
+# e src/. Il resto non gli serve.
+
+.git/
+.gitignore
+.github/
+
+build/
+.gradle/
+out/
+bin/
+
+desktop/
+node_modules/
+**/node_modules/
+
+.idea/
+.vscode/
+*.iml
+
+*.md
+docs/
+
+logs/
+*.log
+tmp/
+
+.env
+.env.*
+*.pem
+*.p12
+*.jks
+*.keystore

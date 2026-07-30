@@ -1,0 +1,55 @@
+# Che cosa NON caricare su Cloud Build.
+#
+# Senza questo file `gcloud run deploy --source` carica l'intera cartella:
+# la storia git (30 MB), l'output di Gradle già compilato, la cache di Gradle e
+# il progetto desktop con le sue dipendenze. Cloud Build ricompila comunque da
+# zero, quindi era tutto peso inutile a ogni deploy.
+#
+# Il Dockerfile copia soltanto:
+#
+#     gradlew, gradle/, settings.gradle, build.gradle, src/
+#
+# Tutto il resto non serve alla build. Se un domani il Dockerfile copiasse
+# qualcos'altro, va tolto anche da qui — altrimenti la build fallisce con un
+# file mancante, e il motivo non sarebbe evidente.
+
+# Questo file stesso, e le regole di git.
+.gcloudignore
+.git/
+.gitignore
+.github/
+
+# Output e cache di compilazione: Cloud Build ricompila da zero.
+build/
+.gradle/
+out/
+bin/
+
+# L'applicazione desktop: ha un suo ciclo di rilascio e non entra nel
+# contenitore del backend.
+desktop/
+node_modules/
+**/node_modules/
+
+# Ambienti di sviluppo.
+.idea/
+.vscode/
+*.iml
+
+# Documentazione e appunti: non servono a un jar.
+*.md
+docs/
+
+# Registri e file temporanei.
+logs/
+*.log
+tmp/
+
+# Segreti, per quanto non dovrebbero stare qui: se uno ci finisce per sbaglio,
+# almeno non parte verso un servizio di build.
+.env
+.env.*
+*.pem
+*.p12
+*.jks
+*.keystore
