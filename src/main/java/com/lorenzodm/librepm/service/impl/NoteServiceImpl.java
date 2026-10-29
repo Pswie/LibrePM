@@ -10,6 +10,7 @@ import com.lorenzodm.librepm.core.entity.NoteLink;
 import com.lorenzodm.librepm.core.entity.NoteRevision;
 import com.lorenzodm.librepm.repository.*;
 import com.lorenzodm.librepm.service.NoteService;
+import com.lorenzodm.librepm.service.NoteAccessPolicy;
 import com.lorenzodm.librepm.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,10 +33,12 @@ public class NoteServiceImpl implements NoteService {
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationService notificationService;
     private final NoteRevisionRepository noteRevisionRepository;
+    private final NoteAccessPolicy noteAccess;
 
     public NoteServiceImpl(NoteRepository noteRepository, UserRepository userRepository, TagRepository tagRepository,
                            TaskRepository taskRepository, ProjectMemberRepository projectMemberRepository,
-                           NotificationService notificationService, NoteRevisionRepository noteRevisionRepository) {
+                           NotificationService notificationService, NoteRevisionRepository noteRevisionRepository,
+                           NoteAccessPolicy noteAccess) {
         this.noteRepository = noteRepository;
         this.userRepository = userRepository;
         this.tagRepository = tagRepository;
@@ -43,6 +46,7 @@ public class NoteServiceImpl implements NoteService {
         this.projectMemberRepository = projectMemberRepository;
         this.notificationService = notificationService;
         this.noteRevisionRepository = noteRevisionRepository;
+        this.noteAccess = noteAccess;
     }
 
     // =================================================================================
@@ -63,14 +67,14 @@ public class NoteServiceImpl implements NoteService {
     @Transactional(readOnly = true)
     public List<Note> listForTask(String userId, String taskId) {
         verifyContextAccess(userId, Note.ParentType.TASK, taskId);
-        return noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(Note.ParentType.TASK, taskId);
+        return noteAccess.visibleTo(userId, noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(Note.ParentType.TASK, taskId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Note> listForProject(String userId, String projectId) {
         verifyContextAccess(userId, Note.ParentType.PROJECT, projectId);
-        return noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(Note.ParentType.PROJECT, projectId);
+        return noteAccess.visibleTo(userId, noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(Note.ParentType.PROJECT, projectId));
     }
 
     // =================================================================================
@@ -89,7 +93,24 @@ public class NoteServiceImpl implements NoteService {
 
         // ANTI-IDOR: Verifica accesso al contesto
         verifyContextAccess(userId, note.getParentType(), note.getParentId());
-        
+        if (!noteAccess.readerFor(userId).test(note)) {
+            throw new ForbiddenException("Non hai accesso a questa nota");
+        }
+
+        return note;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Note requireWrite(String userId, String noteId) {
+        Note note = get(userId, noteId);
+        verifyContextWrite(userId, note.getParentType(), note.getParentId());
+        if (note.getOwner() == null || !userId.equals(note.getOwner().getId())) {
+            throw new OwnershipViolationException("Non puoi modificare i collegamenti di una nota di un altro utente");
+        }
+        if (note.isFrozen()) {
+            throw new ForbiddenException("Non puoi modificare i collegamenti di una nota congelata");
+        }
         return note;
     }
 
@@ -103,7 +124,7 @@ public class NoteServiceImpl implements NoteService {
         }
 
         // ANTI-IDOR: Verifica accesso al contesto (anche se sei owner, devi avere ancora accesso)
-        verifyContextAccess(userId, note.getParentType(), note.getParentId());
+        verifyContextWrite(userId, note.getParentType(), note.getParentId());
 
         // OWNERSHIP: Solo owner può modificare
         if (!note.getOwner().getId().equals(userId)) {
@@ -168,7 +189,7 @@ public class NoteServiceImpl implements NoteService {
         }
 
         // ANTI-IDOR: Verifica accesso al contesto
-        verifyContextAccess(userId, note.getParentType(), note.getParentId());
+        verifyContextWrite(userId, note.getParentType(), note.getParentId());
 
         // OWNERSHIP: Solo owner può eliminare
         if (!note.getOwner().getId().equals(userId)) {
@@ -187,12 +208,10 @@ public class NoteServiceImpl implements NoteService {
     @Override
     @Transactional(readOnly = true)
     public List<Note> search(String userId, String query) {
-        // TODO: Implementare ricerca sicura (filtrando per progetti accessibili)
-        // Per ora manteniamo compatibilità ma è un punto da migliorare
         if (query == null || query.isBlank()) {
-            return noteRepository.findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(userId);
+            return noteAccess.visibleTo(userId, noteRepository.findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(userId));
         }
-        return noteRepository.findByOwnerIdAndDeletedAtIsNullAndTitleContainingIgnoreCaseOrContentContainingIgnoreCase(userId, query, query);
+        return noteAccess.visibleTo(userId, noteRepository.searchFullText(userId, query));
     }
     
     @Override
@@ -206,13 +225,21 @@ public class NoteServiceImpl implements NoteService {
             return new ArrayList<>();
         }
 
-        if ("INBOX".equalsIgnoreCase(scope)) {
-            return noteRepository.findByProjectIdInAndOwnerIdNotAndDeletedAtIsNullOrderByUpdatedAtDesc(projectIds, userId);
-        } else if ("SENT".equalsIgnoreCase(scope)) {
-            return noteRepository.findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(userId);
-        } else {
-            return noteRepository.findByProjectIdInAndDeletedAtIsNullOrderByUpdatedAtDesc(projectIds);
+        if ((parentType == null) != (parentId == null)) {
+            throw new IllegalArgumentException("parentType e parentId devono essere specificati insieme");
         }
+        List<Note> notes = noteRepository.findByProjectIdInAndDeletedAtIsNullOrderByUpdatedAtDesc(projectIds);
+        if (parentType != null && parentId != null) {
+            Note.ParentType type = Note.ParentType.valueOf(parentType.toUpperCase(java.util.Locale.ROOT));
+            verifyContextAccess(userId, type, parentId);
+            notes = notes.stream().filter(n -> n.getParentType() == type && parentId.equals(n.getParentId())).toList();
+        }
+        if ("INBOX".equalsIgnoreCase(scope)) {
+            notes = notes.stream().filter(n -> !n.getOwner().getId().equals(userId)).toList();
+        } else if ("SENT".equalsIgnoreCase(scope)) {
+            notes = notes.stream().filter(n -> n.getOwner().getId().equals(userId)).toList();
+        }
+        return noteAccess.visibleTo(userId, notes);
     }
 
     // =================================================================================
@@ -233,9 +260,9 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Note> getBacklinks(String entityType, String entityId) {
+    public List<Note> getBacklinks(String userId, String entityType, String entityId) {
         NoteLink.LinkedEntityType type = NoteLink.LinkedEntityType.valueOf(entityType.toUpperCase());
-        return noteRepository.findByLinkedEntity(type, entityId);
+        return noteAccess.visibleTo(userId, noteRepository.findByLinkedEntity(type, entityId));
     }
 
     // =================================================================================
@@ -254,10 +281,10 @@ public class NoteServiceImpl implements NoteService {
         if (parentType != null && parentId != null) {
             Note.ParentType type = Note.ParentType.valueOf(parentType);
             verifyContextAccess(userId, type, parentId);
-            return noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(type, parentId);
+            return noteAccess.visibleTo(userId, noteRepository.findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(type, parentId));
         }
         // Fallback legacy
-        return noteRepository.findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(userId);
+        return noteAccess.visibleTo(userId, noteRepository.findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(userId));
     }
 
     // =================================================================================
@@ -270,6 +297,7 @@ public class NoteServiceImpl implements NoteService {
 
         // 1. Verifica accesso e risoluzione Project ID
         String projectId = resolveProjectIdAndVerifyAccess(userId, parentType, parentId);
+        verifyContextWrite(userId, parentType, parentId);
 
         // 2. Creazione Nota
         Note note = new Note();
@@ -331,6 +359,15 @@ public class NoteServiceImpl implements NoteService {
 
     private void verifyContextAccess(String userId, Note.ParentType parentType, String parentId) {
         resolveProjectIdAndVerifyAccess(userId, parentType, parentId);
+    }
+
+    private void verifyContextWrite(String userId, Note.ParentType parentType, String parentId) {
+        String projectId = resolveProjectIdAndVerifyAccess(userId, parentType, parentId);
+        ProjectMember member = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new ForbiddenException("Non hai accesso al progetto"));
+        if (member.getRole() == ProjectMember.Role.VIEWER) {
+            throw new ForbiddenException("Il ruolo Viewer consente soltanto la lettura delle note");
+        }
     }
 
     private void triggerNotifications(Note note, User author, String projectId) {

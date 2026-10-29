@@ -110,7 +110,7 @@ function AboutLibrePMModal({ onClose, t }) {
 import { WorkflowProvider } from "../context/WorkflowContext.jsx";
 
 // Assets
-import LogoIcon from "../assets/Logo.svg";
+import LogoIcon from "../assets/icon.png";
 
 /**
  * AppShell - Main Layout Component for LibrePM.
@@ -334,7 +334,7 @@ export default function AppShell({ initialUser, onLogout }) {
                 },
             },
         ]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [t, onLogout]);
 
     // ========================================

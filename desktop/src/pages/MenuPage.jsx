@@ -138,14 +138,9 @@ export default function MenuPage({ shell }) {
     };
 
     const handleUpdateProject = async (projectId, data) => {
-        try {
-            await librepm.projectsUpdate(projectId, data);
-            loadData();
-            // Aggiorna anche il progetto selezionato per riflettere le modifiche nella modale
-            setSelectedProject(prev => ({ ...prev, ...data }));
-        } catch (e) {
-            throw e; // Rilancia per gestire l'errore nella modale
-        }
+        await librepm.projectsUpdate(projectId, data);
+        loadData();
+        setSelectedProject(prev => ({ ...prev, ...data }));
     };
 
     const handleArchiveProject = async (project) => {

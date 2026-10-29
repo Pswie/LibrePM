@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
                 .body(ApiErrorResponse.of(403, "FORBIDDEN", ex.getMessage(), req.getRequestURI(), Map.of()));
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiErrorResponse.of(403, "FORBIDDEN", ex.getMessage(), req.getRequestURI(), Map.of()));
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiErrorResponse> handleConflict(ConflictException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

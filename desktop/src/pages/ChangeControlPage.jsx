@@ -90,6 +90,13 @@ export default function ChangeControlPage({ shell }) {
         } catch (e) { toast.error(t("Error") + ': ' + e.message); }
     };
 
+    const handleBranchStatus = async (branchId, status) => {
+        try {
+            const updated = await librepm.branchUpdate(projectId, branchId, { status });
+            setBranches(prev => prev.map(branch => branch.id === branchId ? updated : branch));
+        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
+    };
+
     // =========== STATUS HELPERS ===========
 
     const crStatusColor = (status) => {
@@ -111,7 +118,7 @@ export default function ChangeControlPage({ shell }) {
     const CR_SCOPES = ['SCHEDULE', 'BUDGET', 'SCOPE', 'RESOURCES', 'ALL'];
     const CR_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
     const BRANCH_TYPES = ['SCENARIO', 'REFORECAST', 'CANDIDATURE', 'PIVOT', 'SPINOFF', 'EVOLUTIVE'];
-    const BRANCH_STATUSES = ['ACTIVE', 'APPROVED', 'REJECTED', 'MERGED', 'ARCHIVED'];
+    const BRANCH_STATUSES = ['ACTIVE', 'APPROVED', 'REJECTED', 'ARCHIVED'];
 
     // =========== RENDER ===========
 
@@ -258,10 +265,9 @@ export default function ChangeControlPage({ shell }) {
                                                 </div>
                                                 <select className={`form-select form-select-sm text-${branchStatusColor(b.status)}`} style={{ width: 'auto' }}
                                                     value={b.status}
-                                                    onChange={e => {
-                                                        librepm.branchUpdate(projectId, b.id, { status: e.target.value });
-                                                        setBranches(prev => prev.map(x => x.id === b.id ? { ...x, status: e.target.value } : x));
-                                                    }}>
+                                                    aria-label={t("Status")}
+                                                    onChange={e => handleBranchStatus(b.id, e.target.value)}>
+                                                    {b.status === 'MERGED' && <option value="MERGED" disabled>{t('changeControl.branchStatus.MERGED')}</option>}
                                                     {BRANCH_STATUSES.map(s => <option key={s} value={s}>{t(`changeControl.branchStatus.${s}`)}</option>)}
                                                 </select>
                                             </div>

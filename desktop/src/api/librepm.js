@@ -1994,13 +1994,31 @@ export const librepm = {
     /**
      * Downloads an asset.
      */
-    assetsDownload: async (assetId) => {
+    assetsDownload: async (assetId, fileName = '') => {
         const baseUrl = await getApiUrl();
         const basePath = getUserBasePath();
-        const url = `${baseUrl}${basePath}/assets/${assetId}/download`;
-        
-        // Trigger download in browser
-        window.open(url, '_blank');
+        const response = await fetch(`${baseUrl}${basePath}/assets/${encodeURIComponent(assetId)}/download`, {
+            headers: await withAuthorization({ 'X-User-Id': CURRENT_USER_ID }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new ApiError(data.message || 'Errore download allegato', response.status, data);
+        }
+        // A direct window.open cannot attach the Clerk Authorization header.
+        // Fetch first, then download the authenticated response as a local blob.
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const headerName = /filename="([^"]+)"/i.exec(disposition)?.[1];
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = (fileName || headerName || `asset-${assetId}`).split(/[\\/]/).pop();
+        document.body.appendChild(link);
+        try { link.click(); }
+        finally {
+            link.remove();
+            // Let the browser begin consuming the blob before releasing it.
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
     },
 
     // ========================================
@@ -2056,6 +2074,17 @@ export const librepm = {
     // Database Export/Import
     // Endpoint: /api/db
     // ========================================
+
+    /** Export only the selected project, through the scoped JSON/CSV endpoint. */
+    exportProject: async (projectId, format = 'json') => {
+        if (!projectId) throw new Error('Select a project');
+        if (!['json', 'csv'].includes(format)) throw new Error('Unsupported export format');
+        const job = await apiRequest(`${getUserBasePath()}/projects/${encodeURIComponent(projectId)}/export/${format}`, { method: 'POST' });
+        if (job?.status !== 'COMPLETED' || typeof job.resultPayload !== 'string') {
+            throw new Error(job?.errorMessage || 'Export failed');
+        }
+        return new Blob([job.resultPayload], { type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json' });
+    },
 
     /**
      * Exports database as file.

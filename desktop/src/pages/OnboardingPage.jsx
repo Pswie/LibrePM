@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { librepm } from "@api/librepm.js";
-import Logo from "../assets/Logo.svg";
+import Logo from "../assets/icon.png";
 import { useTranslation } from 'react-i18next';
 import { useModal } from '../hooks/useModal';
 
@@ -842,6 +842,7 @@ export default function OnboardingPage({ onProfileSelected, bootstrapData, onRet
                             style={{ 
                                 width: "80px", 
                                 height: "80px",
+                                backgroundColor: "#fff",
                                 borderRadius: "16px", // Smussamento angoli
                                 boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
                             }} 

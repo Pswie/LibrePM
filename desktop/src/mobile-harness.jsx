@@ -88,7 +88,6 @@ const BANDI = [
 // Il componente sta nel punto d'ingresso invece che in un file suo: è una
 // pagina di prova sola, e separarla in due file per compiacere il ricaricamento
 // a caldo — che qui non serve — sarebbe rumore.
-// eslint-disable-next-line react-refresh/only-export-components
 function Harness() {
     const [navOpen, setNavOpen] = useState(false);
     const [activeId, setActiveId] = useState("grants");

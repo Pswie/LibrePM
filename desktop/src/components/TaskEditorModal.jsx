@@ -487,8 +487,12 @@ export default function TaskEditorModal({
         setExistingAssets(existingAssets.filter((a) => a.id !== assetId));
     };
 
-    const handleDownloadAsset = (assetId) => {
-        librepm.assetsDownload(assetId);
+    const handleDownloadAsset = async (asset) => {
+        try {
+            await librepm.assetsDownload(asset.id, asset.fileName);
+        } catch (error) {
+            toast.error(`${t('Error')}: ${error.message}`);
+        }
     };
 
     if (!show) return null;
@@ -1057,7 +1061,7 @@ export default function TaskEditorModal({
                                                     <button
                                                         type="button"
                                                         className="btn btn-outline-primary btn-sm"
-                                                        onClick={() => handleDownloadAsset(asset.id)}
+                                                        onClick={() => handleDownloadAsset(asset)}
                                                         title={t("Download")}
                                                     >
                                                         <i className="bi bi-download"></i>
@@ -1089,9 +1093,7 @@ export default function TaskEditorModal({
                                         <BacklinksPanel
                                             entityType="TASK"
                                             entityId={task.id}
-                                            onNavigate={(noteId) => {
-                                                if (shell?.navigate) shell.navigate("notes", { noteId });
-                                            }}
+                                            onNavigate={(noteId) => handleEditNote({ id: noteId })}
                                         />
                                     </div>
                                 )}

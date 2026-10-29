@@ -173,8 +173,8 @@ public class ProjectExportServiceImpl implements ProjectExportService {
     }
 
     @Override
-    public ImportExportJob getJob(String jobId) {
-        return jobRepository.findById(jobId)
+    public ImportExportJob getJob(String userId, String projectId, String jobId) {
+        return jobRepository.findByIdAndUserIdAndProjectId(jobId, userId, projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job non trovato: " + jobId));
     }
 

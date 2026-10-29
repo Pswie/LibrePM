@@ -6,8 +6,8 @@ import com.lorenzodm.librepm.core.entity.NoteLink;
 import java.util.List;
 
 public interface NoteLinkService {
-    NoteLink create(CreateNoteLinkRequest request);
-    List<NoteLink> findByNoteId(String noteId);
-    List<NoteLink> findByLinkedEntity(String entityType, String entityId);
-    void delete(String id);
+    NoteLink create(String userId, CreateNoteLinkRequest request);
+    List<NoteLink> findByNoteId(String userId, String noteId);
+    List<NoteLink> findByLinkedEntity(String userId, String entityType, String entityId);
+    void delete(String userId, String id);
 }

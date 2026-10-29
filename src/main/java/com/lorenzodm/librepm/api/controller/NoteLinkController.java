@@ -25,30 +25,34 @@ public class NoteLinkController {
     }
 
     @PostMapping
-    public ResponseEntity<NoteLinkResponse> create(@Valid @RequestBody CreateNoteLinkRequest request) {
-        NoteLink link = service.create(request);
+    public ResponseEntity<NoteLinkResponse> create(
+            @RequestHeader("X-User-Id") String userId,
+            @Valid @RequestBody CreateNoteLinkRequest request) {
+        NoteLink link = service.create(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(link));
     }
 
     @GetMapping("/note/{noteId}")
-    public ResponseEntity<List<NoteLinkResponse>> findByNoteId(@PathVariable String noteId) {
-        List<NoteLinkResponse> response = service.findByNoteId(noteId).stream()
+    public ResponseEntity<List<NoteLinkResponse>> findByNoteId(
+            @RequestHeader("X-User-Id") String userId, @PathVariable String noteId) {
+        List<NoteLinkResponse> response = service.findByNoteId(userId, noteId).stream()
                 .map(mapper::toResponse).toList();
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/entity/{entityType}/{entityId}")
     public ResponseEntity<List<NoteLinkResponse>> findByLinkedEntity(
+            @RequestHeader("X-User-Id") String userId,
             @PathVariable String entityType,
             @PathVariable String entityId) {
-        List<NoteLinkResponse> response = service.findByLinkedEntity(entityType, entityId).stream()
+        List<NoteLinkResponse> response = service.findByLinkedEntity(userId, entityType, entityId).stream()
                 .map(mapper::toResponse).toList();
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        service.delete(id);
+    public ResponseEntity<Void> delete(@RequestHeader("X-User-Id") String userId, @PathVariable String id) {
+        service.delete(userId, id);
         return ResponseEntity.noContent().build();
     }
 }

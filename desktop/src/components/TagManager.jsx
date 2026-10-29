@@ -215,7 +215,7 @@ export default function TagManager({ show, onHide }) {
                                     className="bg-dark text-light border-secondary d-flex justify-content-between align-items-center"
                                 >
                                     {editingTag?.id === tag.id ? (
-                                        // ModalitÃ  edit
+                                        // ModalitÃ  edit
                                         <div className="d-flex gap-2 flex-grow-1">
                                             <Form.Control
                                                 type="text"
@@ -258,7 +258,7 @@ export default function TagManager({ show, onHide }) {
                                             </Button>
                                         </div>
                                     ) : (
-                                        // ModalitÃ  visualizzazione
+                                        // ModalitÃ  visualizzazione
                                         <>
                                             <div className="d-flex align-items-center gap-2">
                                                 <Badge

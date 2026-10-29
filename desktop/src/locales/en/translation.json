@@ -1266,5 +1266,8 @@
   "Show password": "Show password",
   "Unable to reset password. Please try again.": "Unable to reset password. Please try again.",
   "Username confirmation does not match": "Username confirmation does not match",
-  "Username confirmation is required": "Username confirmation is required"
+  "Username confirmation is required": "Username confirmation is required",
+  "Evidence note": "Evidence note",
+  "Delete this item?": "Delete this item?",
+  "Export JSON (Project)": "Export JSON (Project)"
 }

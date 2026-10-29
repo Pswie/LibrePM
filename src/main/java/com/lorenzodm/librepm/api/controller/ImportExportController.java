@@ -103,7 +103,7 @@ public class ImportExportController {
             @PathVariable String userId,
             @PathVariable String projectId,
             @PathVariable String jobId) {
-        return ResponseEntity.ok(jobMapper.toResponse(exportService.getJob(jobId)));
+        return ResponseEntity.ok(jobMapper.toResponse(exportService.getJob(userId, projectId, jobId)));
     }
 
     /**
@@ -115,7 +115,7 @@ public class ImportExportController {
             @PathVariable String userId,
             @PathVariable String projectId,
             @PathVariable String jobId) {
-        var job = exportService.getJob(jobId);
+        var job = exportService.getJob(userId, projectId, jobId);
         if (job.getResultPayload() == null) {
             return ResponseEntity.noContent().build();
         }

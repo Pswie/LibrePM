@@ -100,7 +100,7 @@ public class NoteController {
             @RequestHeader("X-User-Id") String userId,
             @RequestParam String entityType,
             @RequestParam String entityId) {
-        List<Note> notes = noteService.getBacklinks(entityType, entityId);
+        List<Note> notes = noteService.getBacklinks(userId, entityType, entityId);
         return ResponseEntity.ok(notes.stream().map(noteMapper::toResponse).collect(Collectors.toList()));
     }
 

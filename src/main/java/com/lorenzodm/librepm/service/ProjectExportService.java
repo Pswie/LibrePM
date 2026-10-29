@@ -30,5 +30,6 @@ public interface ProjectExportService {
      */
     java.util.List<ImportExportJob> listJobs(String userId, String projectId);
 
-    ImportExportJob getJob(String jobId);
+    /** Returns a job only within the requested user and project scope. */
+    ImportExportJob getJob(String userId, String projectId, String jobId);
 }

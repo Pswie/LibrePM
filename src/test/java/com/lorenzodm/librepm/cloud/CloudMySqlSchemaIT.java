@@ -1,5 +1,14 @@
 package com.lorenzodm.librepm.cloud;
 
+import com.lorenzodm.librepm.core.entity.Note;
+import com.lorenzodm.librepm.core.entity.Project;
+import com.lorenzodm.librepm.core.entity.ProjectMember;
+import com.lorenzodm.librepm.core.entity.Task;
+import com.lorenzodm.librepm.core.entity.TaskPriority;
+import com.lorenzodm.librepm.core.entity.TaskStatus;
+import com.lorenzodm.librepm.core.entity.User;
+import com.lorenzodm.librepm.service.SearchService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -10,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 
 import javax.sql.DataSource;
@@ -19,6 +29,9 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -89,6 +102,12 @@ class CloudMySqlSchemaIT {
 
     @Autowired
     DataSource dataSource;
+
+    @Autowired
+    EntityManager entityManager;
+
+    @Autowired
+    SearchService searchService;
 
     /**
      * Via di fuga per gli ambienti dove Testcontainers non individua il daemon
@@ -218,5 +237,81 @@ class CloudMySqlSchemaIT {
                 }
             }
         }
+    }
+
+    @Test
+    @Transactional // All fixtures roll back, including against an external test database.
+    @DisplayName("la ricerca reale MySQL rispetta appartenenza, visibilità e caratteri letterali")
+    void searchUsesMappedTaskFieldsAndRespectsNoteVisibility() {
+        String token = "needle_%" + UUID.randomUUID();
+        User author = searchUser();
+        User reader = searchUser();
+        Project accessible = searchProject(author);
+        Project inaccessible = searchProject(author);
+        entityManager.persist(new ProjectMember(accessible, reader, ProjectMember.Role.VIEWER));
+
+        Note visible = searchNote(author, accessible, token + " visible");
+        Note restricted = searchNote(author, accessible, token + " restricted");
+        restricted.setVisibility(Note.Visibility.ROLE_RESTRICTED);
+        restricted.setRestrictedRoles("[\"ADMIN\"]");
+        Note deleted = searchNote(author, accessible, token + " deleted");
+        deleted.setDeletedAt(Instant.now());
+        searchNote(author, inaccessible, token + " another project");
+        // Must not match: SQL LIKE wildcards in the input must be treated literally.
+        searchNote(author, accessible, token.replace("_%", "XY") + " wildcard decoy");
+
+        TaskStatus status = new TaskStatus("audit-status-" + UUID.randomUUID(), TaskStatus.Category.IN_PROGRESS);
+        TaskPriority priority = new TaskPriority("audit-prio-" + UUID.randomUUID(), 2);
+        entityManager.persist(status);
+        entityManager.persist(priority);
+        Task task = new Task();
+        task.setProject(accessible);
+        task.setTitle(token + " task");
+        task.setDescription("Mapped status_id and priority_id associations");
+        task.setStatus(status);
+        task.setPriority(priority);
+        entityManager.persist(task);
+        entityManager.flush();
+        entityManager.clear();
+
+        var results = searchService.search(reader.getId(), token, null, null, 20);
+        assertThat(results.get("notes")).extracting(row -> row.get("id")).containsExactly(visible.getId());
+        assertThat(results.get("tasks")).hasSize(1);
+        assertThat(results.get("tasks").get(0)).containsEntry("id", task.getId())
+                .containsEntry("status", status.getName()).containsEntry("priority", priority.getName());
+        assertThat(searchService.search(reader.getId(), token, List.of("notes"), inaccessible.getId(), 20)).isEmpty();
+
+        entityManager.createQuery("DELETE FROM ProjectMember m WHERE m.user.id = :reader")
+                .setParameter("reader", reader.getId()).executeUpdate();
+        entityManager.clear();
+        assertThat(searchService.search(reader.getId(), token, null, null, 20)).isEmpty();
+    }
+
+    private User searchUser() {
+        User user = new User();
+        user.setUsername("audit-" + UUID.randomUUID());
+        user.setPasswordHash("test-only-unusable-password");
+        entityManager.persist(user);
+        return user;
+    }
+
+    private Project searchProject(User owner) {
+        Project project = new Project();
+        project.setOwner(owner);
+        project.setName("Isolated search fixture " + UUID.randomUUID());
+        entityManager.persist(project);
+        return project;
+    }
+
+    private Note searchNote(User author, Project project, String title) {
+        Note note = new Note();
+        note.setOwner(author);
+        note.setProjectId(project.getId());
+        note.setParentType(Note.ParentType.PROJECT);
+        note.setParentId(project.getId());
+        note.setTitle(title);
+        note.setContent("Search regression fixture");
+        entityManager.persist(note);
+        return note;
     }
 }

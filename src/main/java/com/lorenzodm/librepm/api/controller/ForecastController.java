@@ -1,10 +1,12 @@
 package com.lorenzodm.librepm.api.controller;
 
+import com.lorenzodm.librepm.api.exception.BadRequestException;
 import com.lorenzodm.librepm.service.ForecastService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 @RestController
@@ -21,7 +23,7 @@ public class ForecastController {
     public ResponseEntity<Map<String, Object>> getEarnedValueMetrics(
             @PathVariable String projectId,
             @RequestParam(required = false) String asOfDate) {
-        LocalDate date = asOfDate != null ? LocalDate.parse(asOfDate) : LocalDate.now();
+        LocalDate date = asOfDate != null ? parseDate(asOfDate) : LocalDate.now();
         return ResponseEntity.ok(forecastService.computeEarnedValueMetrics(projectId, date));
     }
 
@@ -30,7 +32,15 @@ public class ForecastController {
             @PathVariable String projectId,
             @RequestParam String from, @RequestParam String to) {
         return ResponseEntity.ok(
-                forecastService.detectResourceIssues(projectId, LocalDate.parse(from), LocalDate.parse(to))
+                forecastService.detectResourceIssues(projectId, parseDate(from), parseDate(to))
         );
+    }
+
+    private LocalDate parseDate(String value) {
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new BadRequestException("Data non valida: usare il formato YYYY-MM-DD.");
+        }
     }
 }

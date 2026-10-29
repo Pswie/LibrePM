@@ -1,10 +1,12 @@
 package com.lorenzodm.librepm.api.controller;
 
 import com.lorenzodm.librepm.api.exception.ResourceNotFoundException;
+import com.lorenzodm.librepm.api.validation.RequestValues;
 import com.lorenzodm.librepm.core.entity.*;
 import com.lorenzodm.librepm.repository.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,6 +18,7 @@ import java.util.*;
  */
 @RestController
 @RequestMapping("/api/projects/{projectId}/grants")
+@Transactional
 public class GrantsController {
 
     private final GrantCallRepository callRepo;
@@ -54,8 +57,8 @@ public class GrantsController {
         c.setIssuer((String) body.get("issuer"));
         c.setReferenceCode((String) body.get("referenceCode"));
         c.setStatus((String) body.getOrDefault("status", "IDENTIFIED"));
-        if (body.get("deadline") != null) c.setDeadline(LocalDate.parse((String) body.get("deadline")));
-        if (body.get("budgetAvailable") != null) c.setBudgetAvailable(((Number) body.get("budgetAvailable")).doubleValue());
+        if (body.get("deadline") != null) c.setDeadline(RequestValues.date(body, "deadline"));
+        if (body.get("budgetAvailable") != null) c.setBudgetAvailable(RequestValues.amount(body, "budgetAvailable"));
         c.setCurrency((String) body.getOrDefault("currency", "EUR"));
         c.setUrl((String) body.get("url"));
         c.setNotes((String) body.get("notes"));
@@ -66,14 +69,14 @@ public class GrantsController {
     public ResponseEntity<Map<String, Object>> updateCall(
             @PathVariable String projectId, @PathVariable String callId,
             @RequestBody Map<String, Object> body) {
-        GrantCall c = callRepo.findById(callId).orElseThrow(() -> new ResourceNotFoundException("GrantCall not found: " + callId));
+        GrantCall c = requireCall(projectId, callId);
         if (body.containsKey("title")) c.setTitle((String) body.get("title"));
         if (body.containsKey("description")) c.setDescription((String) body.get("description"));
         if (body.containsKey("issuer")) c.setIssuer((String) body.get("issuer"));
         if (body.containsKey("referenceCode")) c.setReferenceCode((String) body.get("referenceCode"));
         if (body.containsKey("status")) c.setStatus((String) body.get("status"));
-        if (body.containsKey("deadline")) c.setDeadline(body.get("deadline") != null ? LocalDate.parse((String) body.get("deadline")) : null);
-        if (body.containsKey("budgetAvailable") && body.get("budgetAvailable") != null) c.setBudgetAvailable(((Number) body.get("budgetAvailable")).doubleValue());
+        if (body.containsKey("deadline")) c.setDeadline(body.get("deadline") != null ? RequestValues.date(body, "deadline") : null);
+        if (body.containsKey("budgetAvailable") && body.get("budgetAvailable") != null) c.setBudgetAvailable(RequestValues.amount(body, "budgetAvailable"));
         if (body.containsKey("currency")) c.setCurrency((String) body.get("currency"));
         if (body.containsKey("url")) c.setUrl((String) body.get("url"));
         if (body.containsKey("notes")) c.setNotes((String) body.get("notes"));
@@ -83,21 +86,23 @@ public class GrantsController {
 
     @DeleteMapping("/calls/{callId}")
     public ResponseEntity<Void> deleteCall(@PathVariable String projectId, @PathVariable String callId) {
-        callRepo.deleteById(callId);
+        callRepo.delete(requireCall(projectId, callId));
         return ResponseEntity.noContent().build();
     }
 
     // =========== CALL REQUIREMENTS ===========
 
     @GetMapping("/calls/{callId}/requirements")
-    public ResponseEntity<List<Map<String, Object>>> listRequirements(@PathVariable String callId) {
+    public ResponseEntity<List<Map<String, Object>>> listRequirements(@PathVariable String projectId, @PathVariable String callId) {
+        requireCall(projectId, callId);
         return ResponseEntity.ok(reqRepo.findByCallIdOrderBySortOrderAsc(callId)
                 .stream().map(this::reqToMap).toList());
     }
 
     @PostMapping("/calls/{callId}/requirements")
     public ResponseEntity<Map<String, Object>> createRequirement(
-            @PathVariable String callId, @RequestBody Map<String, Object> body) {
+            @PathVariable String projectId, @PathVariable String callId, @RequestBody Map<String, Object> body) {
+        requireCall(projectId, callId);
         CallRequirement r = new CallRequirement();
         r.setCallId(callId);
         r.setDescription((String) body.getOrDefault("description", ""));
@@ -110,9 +115,9 @@ public class GrantsController {
 
     @PutMapping("/calls/{callId}/requirements/{reqId}")
     public ResponseEntity<Map<String, Object>> updateRequirement(
-            @PathVariable String callId, @PathVariable String reqId,
+            @PathVariable String projectId, @PathVariable String callId, @PathVariable String reqId,
             @RequestBody Map<String, Object> body) {
-        CallRequirement r = reqRepo.findById(reqId).orElseThrow(() -> new ResourceNotFoundException("CallRequirement not found: " + reqId));
+        CallRequirement r = requireRequirement(projectId, callId, reqId);
         if (body.containsKey("description")) r.setDescription((String) body.get("description"));
         if (body.containsKey("requirementType")) r.setRequirementType((String) body.get("requirementType"));
         if (body.containsKey("isMet")) r.setIsMet((Boolean) body.get("isMet"));
@@ -122,22 +127,24 @@ public class GrantsController {
     }
 
     @DeleteMapping("/calls/{callId}/requirements/{reqId}")
-    public ResponseEntity<Void> deleteRequirement(@PathVariable String callId, @PathVariable String reqId) {
-        reqRepo.deleteById(reqId);
+    public ResponseEntity<Void> deleteRequirement(@PathVariable String projectId, @PathVariable String callId, @PathVariable String reqId) {
+        reqRepo.delete(requireRequirement(projectId, callId, reqId));
         return ResponseEntity.noContent().build();
     }
 
     // =========== SUBMISSION PACKAGES ===========
 
     @GetMapping("/calls/{callId}/submissions")
-    public ResponseEntity<List<Map<String, Object>>> listSubmissions(@PathVariable String callId) {
+    public ResponseEntity<List<Map<String, Object>>> listSubmissions(@PathVariable String projectId, @PathVariable String callId) {
+        requireCall(projectId, callId);
         return ResponseEntity.ok(subRepo.findByCallIdOrderByCreatedAtDesc(callId)
                 .stream().map(this::subToMap).toList());
     }
 
     @PostMapping("/calls/{callId}/submissions")
     public ResponseEntity<Map<String, Object>> createSubmission(
-            @PathVariable String callId, @RequestBody Map<String, Object> body) {
+            @PathVariable String projectId, @PathVariable String callId, @RequestBody Map<String, Object> body) {
+        requireCall(projectId, callId);
         SubmissionPackage s = new SubmissionPackage();
         s.setCallId(callId);
         s.setStatus((String) body.getOrDefault("status", "DRAFT"));
@@ -148,9 +155,12 @@ public class GrantsController {
 
     @PutMapping("/calls/{callId}/submissions/{subId}")
     public ResponseEntity<Map<String, Object>> updateSubmission(
-            @PathVariable String callId, @PathVariable String subId,
+            @PathVariable String projectId, @PathVariable String callId, @PathVariable String subId,
             @RequestBody Map<String, Object> body) {
-        SubmissionPackage s = subRepo.findById(subId).orElseThrow(() -> new ResourceNotFoundException("SubmissionPackage not found: " + subId));
+        requireCall(projectId, callId);
+        SubmissionPackage s = subRepo.findById(subId)
+                .filter(sub -> Objects.equals(callId, sub.getCallId()))
+                .orElseThrow(() -> new ResourceNotFoundException("SubmissionPackage not found in call: " + subId));
         if (body.containsKey("status")) {
             String newStatus = (String) body.get("status");
             s.setStatus(newStatus);
@@ -179,7 +189,7 @@ public class GrantsController {
         o.setTitle((String) body.getOrDefault("title", "New Obligation"));
         o.setDescription((String) body.get("description"));
         o.setType((String) body.get("type"));
-        if (body.get("deadline") != null) o.setDeadline(LocalDate.parse((String) body.get("deadline")));
+        if (body.get("deadline") != null) o.setDeadline(RequestValues.date(body, "deadline"));
         o.setResponsibleUserId((String) body.get("responsibleUserId"));
         o.setStatus((String) body.getOrDefault("status", "PENDING"));
         o.setLinkedDeliverableId((String) body.get("linkedDeliverableId"));
@@ -192,11 +202,11 @@ public class GrantsController {
     public ResponseEntity<Map<String, Object>> updateObligation(
             @PathVariable String projectId, @PathVariable String oblId,
             @RequestBody Map<String, Object> body) {
-        ObligationRecord o = oblRepo.findById(oblId).orElseThrow(() -> new ResourceNotFoundException("ObligationRecord not found: " + oblId));
+        ObligationRecord o = requireObligation(projectId, oblId);
         if (body.containsKey("title")) o.setTitle((String) body.get("title"));
         if (body.containsKey("description")) o.setDescription((String) body.get("description"));
         if (body.containsKey("type")) o.setType((String) body.get("type"));
-        if (body.containsKey("deadline")) o.setDeadline(body.get("deadline") != null ? LocalDate.parse((String) body.get("deadline")) : null);
+        if (body.containsKey("deadline")) o.setDeadline(body.get("deadline") != null ? RequestValues.date(body, "deadline") : null);
         if (body.containsKey("responsibleUserId")) o.setResponsibleUserId((String) body.get("responsibleUserId"));
         if (body.containsKey("status")) o.setStatus((String) body.get("status"));
         if (body.containsKey("linkedDeliverableId")) o.setLinkedDeliverableId((String) body.get("linkedDeliverableId"));
@@ -207,7 +217,7 @@ public class GrantsController {
 
     @DeleteMapping("/obligations/{oblId}")
     public ResponseEntity<Void> deleteObligation(@PathVariable String projectId, @PathVariable String oblId) {
-        oblRepo.deleteById(oblId);
+        oblRepo.delete(requireObligation(projectId, oblId));
         return ResponseEntity.noContent().build();
     }
 
@@ -225,11 +235,12 @@ public class GrantsController {
         ReportingPeriod rp = new ReportingPeriod();
         rp.setProjectId(projectId);
         rp.setName((String) body.getOrDefault("name", "Period"));
-        rp.setPeriodStart(LocalDate.parse((String) body.get("periodStart")));
-        rp.setPeriodEnd(LocalDate.parse((String) body.get("periodEnd")));
-        if (body.get("dueDate") != null) rp.setDueDate(LocalDate.parse((String) body.get("dueDate")));
+        rp.setPeriodStart(RequestValues.date(body, "periodStart"));
+        rp.setPeriodEnd(RequestValues.date(body, "periodEnd"));
+        if (body.get("dueDate") != null) rp.setDueDate(RequestValues.date(body, "dueDate"));
         rp.setStatus((String) body.getOrDefault("status", "UPCOMING"));
         rp.setNotes((String) body.get("notes"));
+        RequestValues.orderedDates(rp.getPeriodStart(), rp.getPeriodEnd());
         return ResponseEntity.ok(rpToMap(rpRepo.save(rp)));
     }
 
@@ -237,21 +248,47 @@ public class GrantsController {
     public ResponseEntity<Map<String, Object>> updateReportingPeriod(
             @PathVariable String projectId, @PathVariable String rpId,
             @RequestBody Map<String, Object> body) {
-        ReportingPeriod rp = rpRepo.findById(rpId).orElseThrow(() -> new ResourceNotFoundException("ReportingPeriod not found: " + rpId));
+        ReportingPeriod rp = requirePeriod(projectId, rpId);
         if (body.containsKey("name")) rp.setName((String) body.get("name"));
-        if (body.containsKey("periodStart")) rp.setPeriodStart(LocalDate.parse((String) body.get("periodStart")));
-        if (body.containsKey("periodEnd")) rp.setPeriodEnd(LocalDate.parse((String) body.get("periodEnd")));
-        if (body.containsKey("dueDate")) rp.setDueDate(body.get("dueDate") != null ? LocalDate.parse((String) body.get("dueDate")) : null);
+        if (body.containsKey("periodStart")) rp.setPeriodStart(RequestValues.date(body, "periodStart"));
+        if (body.containsKey("periodEnd")) rp.setPeriodEnd(RequestValues.date(body, "periodEnd"));
+        if (body.containsKey("dueDate")) rp.setDueDate(body.get("dueDate") != null ? RequestValues.date(body, "dueDate") : null);
         if (body.containsKey("status")) rp.setStatus((String) body.get("status"));
         if (body.containsKey("submissionAssetId")) rp.setSubmissionAssetId((String) body.get("submissionAssetId"));
         if (body.containsKey("notes")) rp.setNotes((String) body.get("notes"));
+        RequestValues.orderedDates(rp.getPeriodStart(), rp.getPeriodEnd());
         return ResponseEntity.ok(rpToMap(rpRepo.save(rp)));
     }
 
     @DeleteMapping("/reporting-periods/{rpId}")
     public ResponseEntity<Void> deleteReportingPeriod(@PathVariable String projectId, @PathVariable String rpId) {
-        rpRepo.deleteById(rpId);
+        rpRepo.delete(requirePeriod(projectId, rpId));
         return ResponseEntity.noContent().build();
+    }
+
+    private GrantCall requireCall(String projectId, String callId) {
+        return callRepo.findById(callId)
+                .filter(call -> Objects.equals(projectId, call.getProjectId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Grant call not found in project: " + callId));
+    }
+
+    private CallRequirement requireRequirement(String projectId, String callId, String reqId) {
+        requireCall(projectId, callId);
+        return reqRepo.findById(reqId)
+                .filter(requirement -> Objects.equals(callId, requirement.getCallId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Requirement not found in call: " + reqId));
+    }
+
+    private ObligationRecord requireObligation(String projectId, String oblId) {
+        return oblRepo.findById(oblId)
+                .filter(obligation -> Objects.equals(projectId, obligation.getProjectId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Obligation not found in project: " + oblId));
+    }
+
+    private ReportingPeriod requirePeriod(String projectId, String rpId) {
+        return rpRepo.findById(rpId)
+                .filter(period -> Objects.equals(projectId, period.getProjectId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Reporting period not found in project: " + rpId));
     }
 
     // =========== MAPPERS ===========

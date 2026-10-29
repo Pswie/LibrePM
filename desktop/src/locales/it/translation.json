@@ -1292,5 +1292,8 @@
   "Show password": "Mostra password",
   "Unable to reset password. Please try again.": "Impossibile ripristinare la password. Riprova.",
   "Username confirmation does not match": "La conferma username non corrisponde",
-  "Username confirmation is required": "Conferma username obbligatoria"
+  "Username confirmation is required": "Conferma username obbligatoria",
+  "Evidence note": "Nota sulle evidenze",
+  "Delete this item?": "Eliminare questo elemento?",
+  "Export JSON (Project)": "Esporta JSON (progetto)"
 }

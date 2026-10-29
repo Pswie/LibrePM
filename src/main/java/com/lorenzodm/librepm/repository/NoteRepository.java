@@ -19,7 +19,11 @@ public interface NoteRepository extends JpaRepository<Note, String> {
     List<Note> findByOwnerIdAndDeletedAtIsNullOrderByUpdatedAtDesc(String ownerId);
     
     // Simple text search
-    List<Note> findByOwnerIdAndDeletedAtIsNullAndTitleContainingIgnoreCaseOrContentContainingIgnoreCase(String ownerId, String title, String content);
+    @Query("SELECT n FROM Note n WHERE n.owner.id = :ownerId AND n.deletedAt IS NULL AND " +
+           "(LOWER(n.title) LIKE LOWER(CONCAT('%', :title, '%')) OR " +
+           "LOWER(n.content) LIKE LOWER(CONCAT('%', :content, '%'))) ORDER BY n.updatedAt DESC")
+    List<Note> findByOwnerIdAndDeletedAtIsNullAndTitleContainingIgnoreCaseOrContentContainingIgnoreCase(
+            @Param("ownerId") String ownerId, @Param("title") String title, @Param("content") String content);
     
     // Contextual retrieval (Task/Project specific via direct parent)
     List<Note> findByParentTypeAndParentIdAndDeletedAtIsNullOrderByCreatedAtAsc(Note.ParentType parentType, String parentId);

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import Logo from "../assets/Logo.svg";
+import Logo from "../assets/icon.png";
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -45,7 +45,24 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
     useEffect(() => {
         if (!open) return undefined;
         const onKeyDown = (event) => {
-            if (event.key === 'Escape') onClose?.();
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose?.();
+            }
+            if (event.key === 'Tab') {
+                const controls = [...panelRef.current.querySelectorAll('button:not([disabled]), a[href]')]
+                    .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (event.shiftKey && (document.activeElement === first || !panelRef.current.contains(document.activeElement))) {
+                    event.preventDefault();
+                    last?.focus();
+                } else if (!event.shiftKey && (document.activeElement === last || !panelRef.current.contains(document.activeElement))) {
+                    event.preventDefault();
+                    first?.focus();
+                }
+            }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
@@ -63,21 +80,22 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
     // All'apertura il fuoco entra nel cassetto, altrimenti chi naviga da
     // tastiera continuerebbe a tabulare nella pagina che il menu sta coprendo.
     //
-    // Il doppio rinvio non è prudenza: da chiuso il pannello è
-    // `visibility: hidden`, e `focus()` su un elemento invisibile viene ignorato
-    // senza errore. Un solo `requestAnimationFrame` non basta — le sue chiamate
-    // girano prima del ricalcolo degli stili di quel fotogramma.
+    // Il pannello deve essere visibile prima di spostare il focus.
     useEffect(() => {
         if (!open) return undefined;
-        let inner = 0;
-        const outer = requestAnimationFrame(() => {
-            inner = requestAnimationFrame(() => {
-                panelRef.current?.querySelector('.jl-nav-link')?.focus();
-            });
-        });
+        const previousFocus = document.activeElement;
+        const panel = panelRef.current;
+        const focusMenu = () => {
+            // Force style resolution after .open changes before moving keyboard focus.
+            if (getComputedStyle(panel).visibility === 'visible') {
+                panel.querySelector('.jl-nav-link')?.focus({ preventScroll: true });
+            }
+        };
+        focusMenu();
+        const frame = requestAnimationFrame(focusMenu);
         return () => {
-            cancelAnimationFrame(outer);
-            if (inner) cancelAnimationFrame(inner);
+            cancelAnimationFrame(frame);
+            if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
         };
     }, [open]);
 
@@ -103,6 +121,11 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                 ref={panelRef}
                 className={`jl-sidebar ${collapsed ? "collapsed" : ""} ${open ? "open" : ""}`}
                 aria-label={t("Navigation")}
+                onTransitionEnd={(event) => {
+                    if (open && event.target === event.currentTarget && event.propertyName === 'transform') {
+                        panelRef.current?.querySelector('.jl-nav-link')?.focus({ preventScroll: true });
+                    }
+                }}
             >
             {/* Logo Header */}
             <div className="jl-sidebar-header">
@@ -114,6 +137,7 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                         style={{
                             width: collapsed ? "32px" : "40px",
                             height: collapsed ? "32px" : "40px",
+                            backgroundColor: "#fff",
                             borderRadius: "8px", // Smussamento angoli
                             transition: "all 0.2s ease"
                         }}

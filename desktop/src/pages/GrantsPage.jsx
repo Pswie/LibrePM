@@ -1,449 +1,300 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { librepm } from '@api/librepm.js';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
+import { useModal } from '../hooks/useModal.js';
 
-/**
- * GrantsPage — Manages grant calls, eligibility, submissions, obligations, and reporting.
- * Tabs: Calls, Requirements, Obligations, Reporting.
- */
+const CALL_STATUSES = ['IDENTIFIED', 'EVALUATING', 'PREPARING', 'SUBMITTED', 'AWARDED', 'REJECTED', 'CLOSED'];
+const OBL_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'];
+const RP_STATUSES = ['UPCOMING', 'OPEN', 'SUBMITTED', 'ACCEPTED'];
+const OBL_TYPES = ['CONTRACTUAL', 'GRANT', 'REGULATORY', 'REPORTING'];
+const REQ_TYPES = ['DOCUMENT', 'ELIGIBILITY', 'BUDGET', 'PARTNER', 'TECHNICAL'];
+
+// A project owns every selection and draft in this page. Remounting also keeps
+// responses from a previous project from replacing the new project's data.
 export default function GrantsPage({ shell }) {
+    return <ProjectGrants key={shell?.currentProject?.id || 'none'} shell={shell} />;
+}
+
+function ProjectGrants({ shell }) {
     const { t } = useTranslation();
+    const modal = useModal();
     const projectId = shell?.currentProject?.id;
     const [tab, setTab] = useState('calls');
-
-    // Calls state
     const [calls, setCalls] = useState([]);
-    const [selectedCall, setSelectedCall] = useState(null);
-    const [editingCall, setEditingCall] = useState(null);
-
-    // Requirements state
-    const [requirements, setRequirements] = useState([]);
-
-    // Obligations state
+    const [selectedCallId, setSelectedCallId] = useState(null);
+    const [requirementsData, setRequirementsData] = useState({ callId: null, items: [] });
+    const [requirementsLoading, setRequirementsLoading] = useState(false);
+    const [requirementsError, setRequirementsError] = useState('');
     const [obligations, setObligations] = useState([]);
-
-    // Reporting periods state
     const [periods, setPeriods] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
+    const [reload, setReload] = useState(0);
+    const [busy, setBusy] = useState(false);
+    const currentCall = useRef(selectedCallId);
+    currentCall.current = selectedCallId;
+    const selectedCall = calls.find(c => c.id === selectedCallId);
+    const requirements = requirementsData.callId === selectedCallId ? requirementsData.items : [];
 
-    useEffect(() => { shell?.setTitle?.(t("Grants")); }, []);
+    useEffect(() => {
+        shell?.setTitle?.(t('Grants'));
+        shell?.setHeaderActions?.(null);
+        shell?.setRightPanel?.(null);
+    }, [shell, t]);
 
-    // =========== LOADERS ===========
+    useEffect(() => {
+        if (!projectId) { setLoading(false); return undefined; }
+        let cancelled = false;
+        setLoading(true);
+        setLoadError('');
+        Promise.all([
+            librepm.grantCallsList(projectId),
+            librepm.grantObligationsList(projectId),
+            librepm.grantReportingPeriodsList(projectId),
+        ]).then(([newCalls, newObligations, newPeriods]) => {
+            if (cancelled) return;
+            setCalls(newCalls || []);
+            setObligations(newObligations || []);
+            setPeriods(newPeriods || []);
+            setSelectedCallId(previous => newCalls?.some(c => c.id === previous) ? previous : newCalls?.[0]?.id || null);
+        }).catch(error => {
+            if (!cancelled) setLoadError(error.message);
+        }).finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [projectId, reload]);
 
-    const loadCalls = useCallback(async () => {
-        if (!projectId) return;
+    useEffect(() => {
+        if (!selectedCallId) return undefined;
+        let cancelled = false;
+        setRequirementsLoading(true);
+        setRequirementsError('');
+        librepm.grantRequirementsList(projectId, selectedCallId).then(items => {
+            if (!cancelled) setRequirementsData({ callId: selectedCallId, items: items || [] });
+        }).catch(error => {
+            if (!cancelled) setRequirementsError(error.message);
+        }).finally(() => { if (!cancelled) setRequirementsLoading(false); });
+        return () => { cancelled = true; };
+    }, [projectId, selectedCallId, reload]);
+
+    // A failed write leaves the editable draft intact and reports the error.
+    const write = async (operation) => {
+        setBusy(true);
         try {
-            const list = await librepm.grantCallsList(projectId);
-            setCalls(list || []);
-        } catch (e) { console.error('Error loading calls:', e); }
-    }, [projectId]);
-
-    const loadRequirements = useCallback(async () => {
-        if (!selectedCall) return;
-        try {
-            const list = await librepm.grantRequirementsList(projectId, selectedCall.id);
-            setRequirements(list || []);
-        } catch (e) { console.error('Error loading requirements:', e); }
-    }, [projectId, selectedCall]);
-
-    const loadObligations = useCallback(async () => {
-        if (!projectId) return;
-        try {
-            const list = await librepm.grantObligationsList(projectId);
-            setObligations(list || []);
-        } catch (e) { console.error('Error loading obligations:', e); }
-    }, [projectId]);
-
-    const loadPeriods = useCallback(async () => {
-        if (!projectId) return;
-        try {
-            const list = await librepm.grantReportingPeriodsList(projectId);
-            setPeriods(list || []);
-        } catch (e) { console.error('Error loading periods:', e); }
-    }, [projectId]);
-
-    useEffect(() => { loadCalls(); loadObligations(); loadPeriods(); }, [loadCalls, loadObligations, loadPeriods]);
-    useEffect(() => { loadRequirements(); }, [loadRequirements]);
-
-    // =========== HANDLERS ===========
-
-    const handleCreateCall = async () => {
-        try {
-            const c = await librepm.grantCallCreate(projectId, { title: t("New call") });
-            setCalls(prev => [...prev, c]);
-            setSelectedCall(c);
-            setEditingCall(c);
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
+            await operation();
+            return true;
+        } catch (error) {
+            toast.error(`${t('Error')}: ${error.message}`);
+            return false;
+        } finally { setBusy(false); }
     };
 
-    const handleUpdateCall = async (callId, data) => {
-        try {
-            const updated = await librepm.grantCallUpdate(projectId, callId, data);
-            setCalls(prev => prev.map(c => c.id === callId ? updated : c));
-            if (selectedCall?.id === callId) setSelectedCall(updated);
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
+    const remove = async (operation) => {
+        if (!await modal.confirm({ title: t('Delete this item?') })) return false;
+        return write(operation);
     };
 
-    const handleDeleteCall = async (callId) => {
-        try {
-            await librepm.grantCallDelete(projectId, callId);
-            setCalls(prev => prev.filter(c => c.id !== callId));
-            if (selectedCall?.id === callId) { setSelectedCall(null); setEditingCall(null); }
-            toast.success(t("Deleted successfully"));
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
+    const updateCall = (data) => write(async () => {
+        const updated = await librepm.grantCallUpdate(projectId, selectedCallId, data);
+        setCalls(prev => prev.map(c => c.id === updated.id ? updated : c));
+        toast.success(t('Saved successfully'));
+    });
+
+    const updateRequirement = (requirementId, data) => {
+        const callId = selectedCallId;
+        return write(async () => {
+            const updated = await librepm.grantRequirementUpdate(projectId, callId, requirementId, data);
+            if (currentCall.current === callId) setRequirementsData(prev => ({
+                callId, items: prev.items.map(r => r.id === requirementId ? updated : r),
+            }));
+            toast.success(t('Saved successfully'));
+        });
     };
 
-    const handleToggleRequirement = async (req) => {
-        try {
-            await librepm.grantRequirementUpdate(projectId, selectedCall.id, req.id, { isMet: !req.isMet });
-            loadRequirements();
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
-    };
+    if (!projectId) return <div className="container-fluid p-4 text-center text-muted"><p>{t('Select a project')}</p></div>;
+    if (loading) return <div className="p-4" role="status">{t('Loading...')}</div>;
+    if (loadError) return <div className="p-4"><div className="alert alert-danger" role="alert">{loadError}</div><button className="btn btn-outline-primary" onClick={() => setReload(v => v + 1)}>{t('Retry')}</button></div>;
 
-    const handleAddRequirement = async () => {
-        try {
-            await librepm.grantRequirementCreate(projectId, selectedCall.id, {
-                description: t("New requirement"),
-                requirementType: 'ELIGIBILITY'
-            });
-            loadRequirements();
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
-    };
+    return <div className="container-fluid p-4">
+        <ul className="nav nav-tabs mb-4">
+            {['calls', 'obligations', 'reporting'].map(key => <li className="nav-item" key={key}>
+                <button className={`nav-link ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>
+                    {t(key === 'calls' ? 'Calls' : key === 'obligations' ? 'Obligations' : 'Reporting')}
+                </button>
+            </li>)}
+        </ul>
 
-    const handleCreateObligation = async () => {
-        try {
-            const o = await librepm.grantObligationCreate(projectId, { title: t("New obligation") });
-            setObligations(prev => [...prev, o]);
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
-    };
-
-    const handleUpdateObligation = async (oblId, data) => {
-        try {
-            const updated = await librepm.grantObligationUpdate(projectId, oblId, data);
-            setObligations(prev => prev.map(o => o.id === oblId ? updated : o));
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
-    };
-
-    const handleCreatePeriod = async () => {
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const endDate = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
-            const rp = await librepm.grantReportingPeriodCreate(projectId, {
-                name: t("New period"),
-                periodStart: today,
-                periodEnd: endDate
-            });
-            setPeriods(prev => [...prev, rp]);
-        } catch (e) { toast.error(t("Error") + ': ' + e.message); }
-    };
-
-    // =========== STATUS HELPERS ===========
-
-    const callStatusColor = (status) => {
-        const colors = {
-            IDENTIFIED: 'secondary', EVALUATING: 'info', PREPARING: 'warning',
-            SUBMITTED: 'primary', AWARDED: 'success', REJECTED: 'danger', CLOSED: 'dark'
-        };
-        return colors[status] || 'secondary';
-    };
-
-    const oblStatusColor = (status) => {
-        const colors = { PENDING: 'warning', IN_PROGRESS: 'info', COMPLETED: 'success', OVERDUE: 'danger' };
-        return colors[status] || 'secondary';
-    };
-
-    const rpStatusColor = (status) => {
-        const colors = { UPCOMING: 'secondary', OPEN: 'info', SUBMITTED: 'primary', ACCEPTED: 'success' };
-        return colors[status] || 'secondary';
-    };
-
-    // =========== RENDER ===========
-
-    if (!projectId) {
-        return <div className="container-fluid p-4 text-center text-muted">
-            <i className="bi bi-folder2-open fs-1 d-block mb-3"></i>
-            <p>{t("Select a project")}</p>
-        </div>;
-    }
-
-    const CALL_STATUSES = ['IDENTIFIED', 'EVALUATING', 'PREPARING', 'SUBMITTED', 'AWARDED', 'REJECTED', 'CLOSED'];
-    const OBL_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'];
-    const RP_STATUSES = ['UPCOMING', 'OPEN', 'SUBMITTED', 'ACCEPTED'];
-    const OBL_TYPES = ['CONTRACTUAL', 'GRANT', 'REGULATORY', 'REPORTING'];
-    const REQ_TYPES = ['DOCUMENT', 'ELIGIBILITY', 'BUDGET', 'PARTNER', 'TECHNICAL'];
-
-    return (
-        <div className="container-fluid p-4">
-            {/* Tabs */}
-            <ul className="nav nav-tabs mb-4">
-                {[
-                    { key: 'calls', icon: 'bi-megaphone', label: t("Calls") },
-                    { key: 'obligations', icon: 'bi-clipboard-check', label: t("Obligations") },
-                    { key: 'reporting', icon: 'bi-calendar-range', label: t("Reporting") },
-                ].map(({ key, icon, label }) => (
-                    <li className="nav-item" key={key}>
-                        <button className={`nav-link ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
-                            <i className={`bi ${icon} me-1`}></i>{label}
-                        </button>
-                    </li>
-                ))}
-            </ul>
-
-            {/* CALLS TAB */}
-            {tab === 'calls' && (
-                <div className="row">
-                    {/* Call list */}
-                    <div className="col-md-4">
-                        <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h6 className="mb-0">{t("Grant Calls")}</h6>
-                            <button className="btn btn-sm btn-primary" onClick={handleCreateCall}>
-                                <i className="bi bi-plus me-1"></i>{t("New Call")}
-                            </button>
-                        </div>
-                        <div className="list-group">
-                            {calls.map(c => (
-                                <button key={c.id}
-                                    className={`list-group-item list-group-item-action ${selectedCall?.id === c.id ? 'active' : ''}`}
-                                    onClick={() => { setSelectedCall(c); setEditingCall(null); }}>
-                                    <div className="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <div className="fw-semibold">{c.title}</div>
-                                            {c.issuer && <small className="text-muted">{c.issuer}</small>}
-                                        </div>
-                                        <span className={`badge bg-${callStatusColor(c.status)}`}>{t(`grants.callStatus.${c.status}`)}</span>
-                                    </div>
-                                    {c.deadline && <small className="d-block mt-1"><i className="bi bi-calendar me-1"></i>{c.deadline}</small>}
-                                </button>
-                            ))}
-                            {calls.length === 0 && <p className="text-muted small p-3">{t("No grant calls yet")}</p>}
-                        </div>
+        {tab === 'calls' && <div className="row g-4">
+            <div className="col-md-4">
+                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <h6 className="mb-0">{t('Grant Calls')}</h6>
+                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => write(async () => {
+                        const created = await librepm.grantCallCreate(projectId, { title: t('New call') });
+                        setCalls(prev => [...prev, created]);
+                        setSelectedCallId(created.id);
+                    })}>{t('New Call')}</button>
+                </div>
+                <div className="list-group">
+                    {calls.map(call => <button key={call.id} disabled={busy} aria-current={selectedCallId === call.id ? 'true' : undefined} className={`list-group-item list-group-item-action ${selectedCallId === call.id ? 'active' : ''}`} onClick={() => setSelectedCallId(call.id)}>
+                        <span className="fw-semibold d-block">{call.title}</span>
+                        <small className="d-block">{call.issuer}</small>
+                        <small>{t(`grants.callStatus.${call.status}`)}{call.deadline ? ` · ${call.deadline}` : ''}</small>
+                    </button>)}
+                    {!calls.length && <p className="text-muted small p-3">{t('No grant calls yet')}</p>}
+                </div>
+            </div>
+            <div className="col-md-8">
+                {selectedCall ? <div className="card">
+                    <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h6 className="mb-0">{selectedCall.title}</h6>
+                        <button className="btn btn-sm btn-outline-danger" disabled={busy} onClick={() => remove(async () => {
+                            await librepm.grantCallDelete(projectId, selectedCall.id);
+                            setCalls(prev => prev.filter(c => c.id !== selectedCall.id));
+                            setSelectedCallId(null);
+                            setRequirementsData({ callId: null, items: [] });
+                        })}>{t('Delete')}</button>
                     </div>
-
-                    {/* Call detail / edit */}
-                    <div className="col-md-8">
-                        {selectedCall ? (
-                            <div className="card">
-                                <div className="card-header d-flex justify-content-between align-items-center">
-                                    <h6 className="mb-0">{selectedCall.title}</h6>
-                                    <div>
-                                        <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setEditingCall(editingCall ? null : selectedCall)}>
-                                            <i className={`bi ${editingCall ? 'bi-eye' : 'bi-pencil'} me-1`}></i>
-                                            {editingCall ? t("View") : t("Edit")}
-                                        </button>
-                                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteCall(selectedCall.id)}>
-                                            <i className="bi bi-trash me-1"></i>{t("Delete")}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="card-body">
-                                    {editingCall ? (
-                                        <div className="row g-3">
-                                            <div className="col-md-8">
-                                                <label className="form-label">{t("Title")}</label>
-                                                <input className="form-control" value={editingCall.title || ''} onChange={e => setEditingCall({ ...editingCall, title: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { title: editingCall.title })} />
-                                            </div>
-                                            <div className="col-md-4">
-                                                <label className="form-label">{t("Status")}</label>
-                                                <select className="form-select" value={editingCall.status || 'IDENTIFIED'} onChange={e => { setEditingCall({ ...editingCall, status: e.target.value }); handleUpdateCall(editingCall.id, { status: e.target.value }); }}>
-                                                    {CALL_STATUSES.map(s => <option key={s} value={s}>{t(`grants.callStatus.${s}`)}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="col-md-6">
-                                                <label className="form-label">{t("Issuer")}</label>
-                                                <input className="form-control" value={editingCall.issuer || ''} onChange={e => setEditingCall({ ...editingCall, issuer: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { issuer: editingCall.issuer })} />
-                                            </div>
-                                            <div className="col-md-3">
-                                                <label className="form-label">{t("Deadline")}</label>
-                                                <input type="date" className="form-control" value={editingCall.deadline || ''} onChange={e => { setEditingCall({ ...editingCall, deadline: e.target.value }); handleUpdateCall(editingCall.id, { deadline: e.target.value || null }); }} />
-                                            </div>
-                                            <div className="col-md-3">
-                                                <label className="form-label">{t("Budget Available")}</label>
-                                                <input type="number" className="form-control" value={editingCall.budgetAvailable || ''} onChange={e => setEditingCall({ ...editingCall, budgetAvailable: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { budgetAvailable: editingCall.budgetAvailable ? Number(editingCall.budgetAvailable) : null })} />
-                                            </div>
-                                            <div className="col-12">
-                                                <label className="form-label">{t("Description")}</label>
-                                                <textarea className="form-control" rows={3} value={editingCall.description || ''} onChange={e => setEditingCall({ ...editingCall, description: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { description: editingCall.description })} />
-                                            </div>
-                                            <div className="col-md-6">
-                                                <label className="form-label">{t("Reference Code")}</label>
-                                                <input className="form-control" value={editingCall.referenceCode || ''} onChange={e => setEditingCall({ ...editingCall, referenceCode: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { referenceCode: editingCall.referenceCode })} />
-                                            </div>
-                                            <div className="col-md-6">
-                                                <label className="form-label">{t("URL")}</label>
-                                                <input className="form-control" value={editingCall.url || ''} onChange={e => setEditingCall({ ...editingCall, url: e.target.value })} onBlur={() => handleUpdateCall(editingCall.id, { url: editingCall.url })} />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="row mb-3">
-                                                <div className="col-md-4"><strong>{t("Status")}:</strong> <span className={`badge bg-${callStatusColor(selectedCall.status)}`}>{t(`grants.callStatus.${selectedCall.status}`)}</span></div>
-                                                <div className="col-md-4"><strong>{t("Issuer")}:</strong> {selectedCall.issuer || '-'}</div>
-                                                <div className="col-md-4"><strong>{t("Deadline")}:</strong> {selectedCall.deadline || '-'}</div>
-                                            </div>
-                                            {selectedCall.description && <p>{selectedCall.description}</p>}
-                                            <div className="row">
-                                                <div className="col-md-4"><strong>{t("Reference Code")}:</strong> {selectedCall.referenceCode || '-'}</div>
-                                                <div className="col-md-4"><strong>{t("Budget Available")}:</strong> {selectedCall.budgetAvailable ? `${selectedCall.budgetAvailable.toLocaleString()} ${selectedCall.currency}` : '-'}</div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* Requirements (eligibility checklist) */}
-                                    <hr className="my-4" />
-                                    <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="mb-0"><i className="bi bi-check2-square me-1"></i>{t("Requirements")}</h6>
-                                        <button className="btn btn-sm btn-outline-primary" onClick={handleAddRequirement}>
-                                            <i className="bi bi-plus me-1"></i>{t("Add")}
-                                        </button>
-                                    </div>
-                                    {requirements.length > 0 ? (
-                                        <div className="list-group">
-                                            {requirements.map(r => (
-                                                <div key={r.id} className="list-group-item d-flex align-items-center">
-                                                    <input type="checkbox" className="form-check-input me-3" checked={!!r.isMet}
-                                                        onChange={() => handleToggleRequirement(r)} />
-                                                    <div className="flex-grow-1">
-                                                        <span className={r.isMet ? 'text-decoration-line-through text-muted' : ''}>
-                                                            {r.description}
-                                                        </span>
-                                                        {r.requirementType && <span className="badge bg-light text-dark ms-2">{t(`grants.reqType.${r.requirementType}`)}</span>}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-muted small">{t("No requirements added")}</p>
-                                    )}
-                                    <div className="mt-2 small text-muted">
-                                        {t("Met")}: {requirements.filter(r => r.isMet).length}/{requirements.length}
-                                    </div>
-                                </div>
+                    <div className="card-body">
+                        <CallForm key={selectedCall.id} call={selectedCall} busy={busy} onSave={updateCall} />
+                        <hr className="my-4" />
+                        <h6>{t('Requirements')}</h6>
+                        {requirementsError ? <div className="alert alert-danger" role="alert">{requirementsError}<button className="btn btn-sm btn-outline-danger ms-2" onClick={() => setReload(v => v + 1)}>{t('Retry')}</button></div> : requirementsLoading || requirementsData.callId !== selectedCallId ? <p role="status">{t('Loading...')}</p> : <>
+                            <RequirementForm key={`new-${selectedCallId}`} busy={busy} onSave={data => {
+                                const callId = selectedCallId;
+                                return write(async () => {
+                                    const created = await librepm.grantRequirementCreate(projectId, callId, data);
+                                    if (currentCall.current === callId) setRequirementsData(prev => ({ callId, items: [...prev.items, created] }));
+                                });
+                            }} />
+                            <div className="list-group mt-3">
+                                {requirements.map(requirement => <div className="list-group-item" key={requirement.id}>
+                                    <RequirementForm requirement={requirement} busy={busy} onSave={data => updateRequirement(requirement.id, data)} onDelete={() => remove(async () => {
+                                        const callId = selectedCallId;
+                                        await librepm.grantRequirementDelete(projectId, callId, requirement.id);
+                                        if (currentCall.current === callId) setRequirementsData(prev => ({ callId, items: prev.items.filter(r => r.id !== requirement.id) }));
+                                    })} />
+                                </div>)}
                             </div>
-                        ) : (
-                            <div className="text-center text-muted p-5">
-                                <i className="bi bi-megaphone fs-1 d-block mb-3"></i>
-                                <p>{t("Select a call to view details")}</p>
-                            </div>
-                        )}
+                            <p className="mt-2 small text-muted">{t('Met')}: {requirements.filter(r => r.isMet).length}/{requirements.length}</p>
+                        </>}
                     </div>
-                </div>
-            )}
+                </div> : <p className="text-center text-muted p-5">{t('Select a call to view details')}</p>}
+            </div>
+        </div>}
 
-            {/* OBLIGATIONS TAB */}
-            {tab === 'obligations' && (
-                <div>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="mb-0">{t("Obligations")}</h6>
-                        <button className="btn btn-sm btn-primary" onClick={handleCreateObligation}>
-                            <i className="bi bi-plus me-1"></i>{t("Add")}
-                        </button>
-                    </div>
-                    {obligations.length > 0 ? (
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>{t("Title")}</th>
-                                        <th>{t("Type")}</th>
-                                        <th>{t("Deadline")}</th>
-                                        <th>{t("Status")}</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {obligations.map(o => (
-                                        <tr key={o.id}>
-                                            <td>
-                                                <input className="form-control form-control-sm border-0" value={o.title}
-                                                    onChange={e => setObligations(prev => prev.map(x => x.id === o.id ? { ...x, title: e.target.value } : x))}
-                                                    onBlur={() => handleUpdateObligation(o.id, { title: o.title })} />
-                                            </td>
-                                            <td>
-                                                <select className="form-select form-select-sm border-0" value={o.type || ''}
-                                                    onChange={e => handleUpdateObligation(o.id, { type: e.target.value })}>
-                                                    <option value="">-</option>
-                                                    {OBL_TYPES.map(t2 => <option key={t2} value={t2}>{t(`grants.oblType.${t2}`)}</option>)}
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <input type="date" className="form-control form-control-sm border-0" value={o.deadline || ''}
-                                                    onChange={e => handleUpdateObligation(o.id, { deadline: e.target.value || null })} />
-                                            </td>
-                                            <td>
-                                                <select className={`form-select form-select-sm border-0 text-${oblStatusColor(o.status)}`} value={o.status}
-                                                    onChange={e => handleUpdateObligation(o.id, { status: e.target.value })}>
-                                                    {OBL_STATUSES.map(s => <option key={s} value={s}>{t(`grants.oblStatus.${s}`)}</option>)}
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <button className="btn btn-sm btn-outline-danger" onClick={async () => {
-                                                    await librepm.grantObligationDelete(projectId, o.id);
-                                                    setObligations(prev => prev.filter(x => x.id !== o.id));
-                                                }}><i className="bi bi-trash"></i></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <p className="text-muted">{t("No obligations")}</p>
-                    )}
-                </div>
-            )}
+        {tab === 'obligations' && <>
+            <button className="btn btn-sm btn-primary mb-3" disabled={busy} onClick={() => write(async () => {
+                const created = await librepm.grantObligationCreate(projectId, { title: t('New obligation') });
+                setObligations(prev => [...prev, created]);
+            })}>{t('Add')}</button>
+            {!obligations.length && <p className="text-muted">{t('No obligations')}</p>}
+            <div className="row g-3">{obligations.map(obligation => <div className="col-lg-6" key={obligation.id}>
+                <div className="card card-body"><ObligationForm obligation={obligation} busy={busy} onSave={data => write(async () => {
+                    const updated = await librepm.grantObligationUpdate(projectId, obligation.id, data);
+                    setObligations(prev => prev.map(o => o.id === updated.id ? updated : o));
+                    toast.success(t('Saved successfully'));
+                })} onDelete={() => remove(async () => {
+                    await librepm.grantObligationDelete(projectId, obligation.id);
+                    setObligations(prev => prev.filter(o => o.id !== obligation.id));
+                })} /></div>
+            </div>)}</div>
+        </>}
 
-            {/* REPORTING PERIODS TAB */}
-            {tab === 'reporting' && (
-                <div>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="mb-0">{t("Reporting Periods")}</h6>
-                        <button className="btn btn-sm btn-primary" onClick={handleCreatePeriod}>
-                            <i className="bi bi-plus me-1"></i>{t("Add")}
-                        </button>
-                    </div>
-                    {periods.length > 0 ? (
-                        <div className="row g-3">
-                            {periods.map(rp => (
-                                <div className="col-md-4" key={rp.id}>
-                                    <div className="card h-100">
-                                        <div className="card-body">
-                                            <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <input className="form-control form-control-sm fw-semibold border-0 p-0" value={rp.name}
-                                                    onChange={e => setPeriods(prev => prev.map(x => x.id === rp.id ? { ...x, name: e.target.value } : x))}
-                                                    onBlur={() => librepm.grantReportingPeriodUpdate(projectId, rp.id, { name: rp.name })} />
-                                                <select className={`form-select form-select-sm ms-2 text-${rpStatusColor(rp.status)}`} style={{ width: 'auto' }}
-                                                    value={rp.status}
-                                                    onChange={e => {
-                                                        const newStatus = e.target.value;
-                                                        librepm.grantReportingPeriodUpdate(projectId, rp.id, { status: newStatus });
-                                                        setPeriods(prev => prev.map(x => x.id === rp.id ? { ...x, status: newStatus } : x));
-                                                    }}>
-                                                    {RP_STATUSES.map(s => <option key={s} value={s}>{t(`grants.rpStatus.${s}`)}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="small text-muted">
-                                                <i className="bi bi-calendar me-1"></i>
-                                                {rp.periodStart} — {rp.periodEnd}
-                                            </div>
-                                            {rp.dueDate && <div className="small text-muted mt-1">
-                                                <i className="bi bi-clock me-1"></i>{t("Due")}: {rp.dueDate}
-                                            </div>}
-                                        </div>
-                                        <div className="card-footer bg-transparent d-flex justify-content-end">
-                                            <button className="btn btn-sm btn-outline-danger" onClick={async () => {
-                                                await librepm.grantReportingPeriodDelete(projectId, rp.id);
-                                                setPeriods(prev => prev.filter(x => x.id !== rp.id));
-                                            }}><i className="bi bi-trash me-1"></i>{t("Delete")}</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-muted">{t("No reporting periods")}</p>
-                    )}
-                </div>
-            )}
-        </div>
-    );
+        {tab === 'reporting' && <>
+            <button className="btn btn-sm btn-primary mb-3" disabled={busy} onClick={() => write(async () => {
+                // Keep date-only values in the user's local calendar.
+                const today = new Date();
+                const end = new Date(today);
+                end.setDate(end.getDate() + 90);
+                const localDate = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                const created = await librepm.grantReportingPeriodCreate(projectId, { name: t('New period'), periodStart: localDate(today), periodEnd: localDate(end) });
+                setPeriods(prev => [...prev, created]);
+            })}>{t('Add')}</button>
+            {!periods.length && <p className="text-muted">{t('No reporting periods')}</p>}
+            <div className="row g-3">{periods.map(period => <div className="col-lg-6" key={period.id}>
+                <div className="card card-body"><ReportingPeriodForm period={period} busy={busy} onSave={data => write(async () => {
+                    const updated = await librepm.grantReportingPeriodUpdate(projectId, period.id, data);
+                    setPeriods(prev => prev.map(p => p.id === updated.id ? updated : p));
+                    toast.success(t('Saved successfully'));
+                })} onDelete={() => remove(async () => {
+                    await librepm.grantReportingPeriodDelete(projectId, period.id);
+                    setPeriods(prev => prev.filter(p => p.id !== period.id));
+                })} /></div>
+            </div>)}</div>
+        </>}
+    </div>;
+}
+
+function Field({ label, children, className = 'col-12' }) {
+    return <label className={`${className} form-label mb-0`}><span className="d-block mb-1">{label}</span>{children}</label>;
+}
+
+function CallForm({ call, busy, onSave }) {
+    const { t } = useTranslation();
+    const [draft, setDraft] = useState(call);
+    useEffect(() => { setDraft(call); }, [call]);
+    const change = field => e => setDraft(prev => ({ ...prev, [field]: e.target.value }));
+    return <form onSubmit={e => {
+        e.preventDefault();
+        onSave({ ...draft, title: draft.title.trim(), deadline: draft.deadline || null, budgetAvailable: draft.budgetAvailable === '' || draft.budgetAvailable == null ? null : Number(draft.budgetAvailable) });
+    }}><fieldset disabled={busy} className="row g-3">
+        <Field label={t('Title')} className="col-md-8"><input className="form-control" required value={draft.title || ''} onChange={change('title')} /></Field>
+        <Field label={t('Status')} className="col-md-4"><select className="form-select" value={draft.status || 'IDENTIFIED'} onChange={change('status')}>{CALL_STATUSES.map(s => <option key={s} value={s}>{t(`grants.callStatus.${s}`)}</option>)}</select></Field>
+        <Field label={t('Issuer')} className="col-md-6"><input className="form-control" value={draft.issuer || ''} onChange={change('issuer')} /></Field>
+        <Field label={t('Deadline')} className="col-md-6"><input type="date" className="form-control" value={draft.deadline || ''} onChange={change('deadline')} /></Field>
+        <Field label={t('Budget Available')} className="col-md-8"><input type="number" min="0" step="0.01" className="form-control" value={draft.budgetAvailable ?? ''} onChange={change('budgetAvailable')} /></Field>
+        <Field label={t('Currency')} className="col-md-4"><input className="form-control" required minLength={3} maxLength={3} value={draft.currency || 'EUR'} onChange={change('currency')} /></Field>
+        <Field label={t('Description')}><textarea className="form-control" rows={3} value={draft.description || ''} onChange={change('description')} /></Field>
+        <Field label={t('Reference Code')} className="col-md-6"><input className="form-control" value={draft.referenceCode || ''} onChange={change('referenceCode')} /></Field>
+        <Field label={t('URL')} className="col-md-6"><input type="url" className="form-control" value={draft.url || ''} onChange={change('url')} /></Field>
+        <div className="col-12"><button type="submit" className="btn btn-sm btn-primary">{t('Save')}</button></div>
+    </fieldset></form>;
+}
+
+function RequirementForm({ requirement, busy, onSave, onDelete }) {
+    const { t } = useTranslation();
+    const empty = { description: '', requirementType: 'ELIGIBILITY', evidenceNote: '', isMet: false };
+    const [draft, setDraft] = useState(requirement || empty);
+    useEffect(() => { if (requirement) setDraft(requirement); }, [requirement]);
+    return <form onSubmit={async e => {
+        e.preventDefault();
+        if (await onSave({ ...draft, description: draft.description.trim() }) && !requirement) setDraft(empty);
+    }}><fieldset disabled={busy} className="row g-2 align-items-end">
+        <Field label={t('Description')} className="col-md-8"><input className="form-control form-control-sm" required value={draft.description || ''} onChange={e => setDraft({ ...draft, description: e.target.value })} /></Field>
+        <Field label={t('Type')} className="col-md-4"><select className="form-select form-select-sm" value={draft.requirementType || 'ELIGIBILITY'} onChange={e => setDraft({ ...draft, requirementType: e.target.value })}>{REQ_TYPES.map(type => <option key={type} value={type}>{t(`grants.reqType.${type}`)}</option>)}</select></Field>
+        {requirement && <><Field label={t('Evidence note')}><textarea className="form-control form-control-sm" rows={2} value={draft.evidenceNote || ''} onChange={e => setDraft({ ...draft, evidenceNote: e.target.value })} /></Field>
+            <div className="col-12"><label className="form-check"><input type="checkbox" className="form-check-input" checked={!!draft.isMet} onChange={e => setDraft({ ...draft, isMet: e.target.checked })} /><span className="form-check-label">{t('Met')}</span></label></div></>}
+        <div className="col-12 d-flex gap-2"><button type="submit" className="btn btn-sm btn-outline-primary">{t(requirement ? 'Save' : 'Add')}</button>{onDelete && <button type="button" className="btn btn-sm btn-outline-danger" onClick={onDelete}>{t('Delete')}</button>}</div>
+    </fieldset></form>;
+}
+
+function ObligationForm({ obligation, busy, onSave, onDelete }) {
+    const { t } = useTranslation();
+    const [draft, setDraft] = useState(obligation);
+    useEffect(() => { setDraft(obligation); }, [obligation]);
+    const change = field => e => setDraft(prev => ({ ...prev, [field]: e.target.value }));
+    return <form onSubmit={e => { e.preventDefault(); onSave({ ...draft, title: draft.title.trim(), deadline: draft.deadline || null }); }}><fieldset disabled={busy} className="row g-3">
+        <Field label={t('Title')}><input className="form-control" required value={draft.title || ''} onChange={change('title')} /></Field>
+        <Field label={t('Type')} className="col-md-6"><select className="form-select" value={draft.type || ''} onChange={change('type')}><option value="">-</option>{OBL_TYPES.map(type => <option key={type} value={type}>{t(`grants.oblType.${type}`)}</option>)}</select></Field>
+        <Field label={t('Status')} className="col-md-6"><select className="form-select" value={draft.status} onChange={change('status')}>{OBL_STATUSES.map(s => <option key={s} value={s}>{t(`grants.oblStatus.${s}`)}</option>)}</select></Field>
+        <Field label={t('Deadline')}><input type="date" className="form-control" value={draft.deadline || ''} onChange={change('deadline')} /></Field>
+        <Field label={t('Description')}><textarea className="form-control" rows={2} value={draft.description || ''} onChange={change('description')} /></Field>
+        <div className="col-12 d-flex gap-2"><button type="submit" className="btn btn-sm btn-primary">{t('Save')}</button><button type="button" className="btn btn-sm btn-outline-danger" onClick={onDelete}>{t('Delete')}</button></div>
+    </fieldset></form>;
+}
+
+function ReportingPeriodForm({ period, busy, onSave, onDelete }) {
+    const { t } = useTranslation();
+    const [draft, setDraft] = useState(period);
+    useEffect(() => { setDraft(period); }, [period]);
+    const change = field => e => setDraft(prev => ({ ...prev, [field]: e.target.value }));
+    return <form onSubmit={e => { e.preventDefault(); onSave({ ...draft, name: draft.name.trim(), dueDate: draft.dueDate || null }); }}><fieldset disabled={busy} className="row g-3">
+        <Field label={t('Name')} className="col-md-8"><input className="form-control" required value={draft.name || ''} onChange={change('name')} /></Field>
+        <Field label={t('Status')} className="col-md-4"><select className="form-select" value={draft.status} onChange={change('status')}>{RP_STATUSES.map(s => <option key={s} value={s}>{t(`grants.rpStatus.${s}`)}</option>)}</select></Field>
+        <Field label={t('Start Date')} className="col-md-6"><input type="date" className="form-control" required max={draft.periodEnd || undefined} value={draft.periodStart || ''} onChange={change('periodStart')} /></Field>
+        <Field label={t('End Date')} className="col-md-6"><input type="date" className="form-control" required min={draft.periodStart || undefined} value={draft.periodEnd || ''} onChange={change('periodEnd')} /></Field>
+        <Field label={t('Due')}><input type="date" className="form-control" value={draft.dueDate || ''} onChange={change('dueDate')} /></Field>
+        <Field label={t('Notes')}><textarea className="form-control" rows={2} value={draft.notes || ''} onChange={change('notes')} /></Field>
+        <div className="col-12 d-flex gap-2"><button type="submit" className="btn btn-sm btn-primary">{t('Save')}</button><button type="button" className="btn btn-sm btn-outline-danger" onClick={onDelete}>{t('Delete')}</button></div>
+    </fieldset></form>;
 }

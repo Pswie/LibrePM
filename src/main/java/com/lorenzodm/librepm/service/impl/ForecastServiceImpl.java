@@ -1,5 +1,6 @@
 package com.lorenzodm.librepm.service.impl;
 
+import com.lorenzodm.librepm.api.exception.BadRequestException;
 import com.lorenzodm.librepm.core.entity.ResourceAllocation;
 import com.lorenzodm.librepm.core.entity.Task;
 
@@ -12,6 +13,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,62 +38,87 @@ public class ForecastServiceImpl implements ForecastService {
 
     @Override
     public Map<String, Object> computeEarnedValueMetrics(String projectId, LocalDate asOfDate) {
+        LocalDate today = LocalDate.now();
+        LocalDate date = asOfDate != null ? asOfDate : today;
+        if (!today.equals(date)) {
+            throw new BadRequestException("Le metriche sono disponibili solo alla data corrente: "
+                    + "non sono ancora disponibili snapshot storici di stato e pianificazione.");
+        }
         List<Task> tasks = taskRepo.findByProjectId(projectId);
         Map<String, Object> metrics = new LinkedHashMap<>();
-
-        if (tasks.isEmpty()) {
-            metrics.put("spi", 0.0);
-            metrics.put("cpi", 0.0);
-            metrics.put("eac", 0.0);
-            return metrics;
-        }
-
         double totalPlannedEffort = 0;
         double earnedEffort = 0;
-        double actualEffort = 0;
+        double plannedValue = 0;
+        boolean scheduleAvailable = true;
 
         for (Task task : tasks) {
-            double planned = task.getEstimatedEffortHours() != null ? task.getEstimatedEffortHours() : 0;
+            // Summary tasks roll up their children; including both counts the
+            // same work twice. The current model has no partial progress field,
+            // so earned value uses the explicit 0/100 completion rule.
+            if (task.getType() == Task.Type.SUMMARY_TASK) continue;
+            double planned = task.getEstimatedEffortHours() != null
+                    ? task.getEstimatedEffortHours()
+                    : task.getEstimatedEffort() != null ? task.getEstimatedEffort() / 60.0 : 0;
+            planned = Math.max(0, planned);
             totalPlannedEffort += planned;
-
-            // Earned = planned * (actual/planned ratio, capped at 1.0)
-            double actual = task.getActualEffortHours() != null ? task.getActualEffortHours() : 0;
-            double completionRatio = planned > 0 ? Math.min(actual / planned, 1.0) : 0;
-            earnedEffort += planned * completionRatio;
+            if (task.getStatus() != null && task.getStatus().isCompleted()) {
+                earnedEffort += planned;
+            }
+            if (planned == 0) continue;
+            if (task.getPlannedStart() == null || task.getPlannedFinish() == null
+                    || task.getPlannedFinish().isBefore(task.getPlannedStart())) {
+                scheduleAvailable = false;
+                continue;
+            }
+            LocalDate start = task.getPlannedStart().toLocalDate();
+            LocalDate finish = task.getPlannedFinish().toLocalDate();
+            long durationDays = ChronoUnit.DAYS.between(start, finish) + 1;
+            long elapsedDays = Math.max(0, Math.min(durationDays, ChronoUnit.DAYS.between(start, date) + 1));
+            plannedValue += planned * elapsedDays / durationDays;
         }
 
-        // Sum actual hours from time entries (durationMinutes → hours)
-        int totalMinutes = timeEntryRepo.sumDurationByProjectId(projectId);
-        actualEffort = totalMinutes / 60.0;
+        // Future-dated time entries cannot count as cost already incurred.
+        int totalMinutes = timeEntryRepo.sumDurationByProjectIdThroughDate(projectId, date);
+        double actualEffort = totalMinutes / 60.0;
 
         // Budget At Completion
         double bac = totalPlannedEffort;
 
         // Schedule Performance Index
-        double spi = totalPlannedEffort > 0 ? earnedEffort / totalPlannedEffort : 0;
+        Double spi = scheduleAvailable && plannedValue > 0 ? earnedEffort / plannedValue : null;
 
         // Cost Performance Index
         double cpi = actualEffort > 0 ? earnedEffort / actualEffort : 0;
 
         // Estimate At Completion
-        double eac = cpi > 0 ? bac / cpi : bac;
+        Double eac = null;
+        if (cpi > 0) eac = bac / cpi;
+        else if (actualEffort == 0) eac = bac;
 
         // Estimate To Complete
-        double etc = Math.max(0, eac - actualEffort);
+        Double etc = eac != null ? Math.max(0, eac - actualEffort) : null;
 
         // Variance At Completion
-        double vac = bac - eac;
+        Double vac = eac != null ? bac - eac : null;
 
+        metrics.put("asOfDate", date.toString());
+        metrics.put("earnedValueMethod", "COMPLETED_TASKS_0_100");
+        metrics.put("scheduleAvailable", scheduleAvailable);
         metrics.put("bac", Math.round(bac * 100.0) / 100.0);
+        metrics.put("plannedValue", scheduleAvailable ? rounded(plannedValue) : null);
         metrics.put("earnedValue", Math.round(earnedEffort * 100.0) / 100.0);
         metrics.put("actualCost", Math.round(actualEffort * 100.0) / 100.0);
-        metrics.put("spi", Math.round(spi * 100.0) / 100.0);
+        metrics.put("spi", rounded(spi));
         metrics.put("cpi", Math.round(cpi * 100.0) / 100.0);
-        metrics.put("eac", Math.round(eac * 100.0) / 100.0);
-        metrics.put("etc", Math.round(etc * 100.0) / 100.0);
-        metrics.put("vac", Math.round(vac * 100.0) / 100.0);
+        metrics.put("eac", rounded(eac));
+        metrics.put("etc", rounded(etc));
+        metrics.put("vac", rounded(vac));
 
         return metrics;
+    }
+
+    private Double rounded(Double value) {
+        return value != null ? Math.round(value * 100.0) / 100.0 : null;
     }
 
     @Override

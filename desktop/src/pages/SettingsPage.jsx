@@ -108,7 +108,7 @@ export default function SettingsPage({ shell }) {
             }
         }
         loadSettings();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, []);
 
     // ========================================
@@ -122,7 +122,7 @@ export default function SettingsPage({ shell }) {
         if (key === "theme") {
             applyThemePreview(value);
         }
-        
+
         if (key === "language") {
             i18n.changeLanguage(value);
         }
@@ -286,14 +286,14 @@ export default function SettingsPage({ shell }) {
     const handleRotateCalendarToken = async () => {
         const confirmed = await modal.confirm({ title: t("Regenerating the token will require updating the link on all your external calendars. Continue?") });
         if (!confirmed) return;
-        
+
         try {
             const userId = librepm.getCurrentUser();
             const response = await fetch(`${await librepm.init().then(r => r.baseUrl)}/calendar/${userId}/rotate-token`, {
                 method: 'POST',
                 headers: { 'X-User-Id': userId }
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 const baseUrl = await librepm.init().then(r => r.baseUrl);

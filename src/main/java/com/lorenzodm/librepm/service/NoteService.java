@@ -16,6 +16,8 @@ public interface NoteService {
 
     // Metodi CRUD su singola nota (con verifica contesto)
     Note get(String userId, String noteId);
+    /** Validates note ownership and current write access before changing related data. */
+    Note requireWrite(String userId, String noteId);
     Note update(String userId, String noteId, UpdateNoteRequest request);
     void delete(String userId, String noteId);
 
@@ -27,7 +29,7 @@ public interface NoteService {
     List<com.lorenzodm.librepm.core.entity.NoteRevision> getRevisions(String userId, String noteId);
 
     // Backlinks (PRD-02-FR-005)
-    List<Note> getBacklinks(String entityType, String entityId);
+    List<Note> getBacklinks(String userId, String entityType, String entityId);
 
     // Deprecati (da rimuovere dopo refactoring completo)
     Note create(String userId, String parentType, String parentId, CreateNoteRequest request);

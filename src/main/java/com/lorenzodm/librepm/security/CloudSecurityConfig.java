@@ -16,7 +16,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.web.cors.CorsConfiguration;
@@ -199,6 +203,7 @@ public class CloudSecurityConfig {
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(new ClerkRoleConverter(clerkProperties)))
         );
+        http.addFilterAfter(new CloudUserIdentityFilter(identityService), BearerTokenAuthenticationFilter.class);
 
         http.httpBasic(AbstractHttpConfigurer::disable);
         http.formLogin(AbstractHttpConfigurer::disable);
@@ -223,13 +228,17 @@ public class CloudSecurityConfig {
     JwtDecoder cloudJwtDecoder() {
         NimbusJwtDecoder decoder = (NimbusJwtDecoder) JwtDecoders
                 .fromIssuerLocation(clerkProperties.getIssuerUri());
+        decoder.setJwtValidator(cloudJwtValidator());
+        return decoder;
+    }
 
+    OAuth2TokenValidator<Jwt> cloudJwtValidator() {
         String audience = clerkProperties.getAudience();
         if (audience != null && !audience.isBlank()) {
-            decoder.setJwtValidator(JwtValidators.createDefaultWithValidators(
-                    new AudienceValidator(audience)));
+            return JwtValidators.createDefaultWithValidators(
+                    new JwtIssuerValidator(clerkProperties.getIssuerUri()), new AudienceValidator(audience));
         }
-        return decoder;
+        return JwtValidators.createDefaultWithIssuer(clerkProperties.getIssuerUri());
     }
 
     @Bean

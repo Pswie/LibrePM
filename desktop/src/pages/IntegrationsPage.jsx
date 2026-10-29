@@ -12,7 +12,22 @@ export default function IntegrationsPage({ shell }) {
     const modal = useModal();
     const [icsToken, setIcsToken] = useState('');
     const [loadingToken, setLoadingToken] = useState(true);
+    const [tokenError, setTokenError] = useState('');
     const [mappingProfiles, setMappingProfiles] = useState([]);
+    const isDesktop = librepm.isElectron();
+
+    const loadIcsToken = useCallback(async () => {
+        setLoadingToken(true);
+        setTokenError('');
+        try {
+            const response = await librepm.getCalendarToken();
+            if (!response?.token) throw new Error('Calendar token unavailable');
+            setIcsToken(response.token);
+        } catch (error) {
+            setIcsToken('');
+            setTokenError(error.message);
+        } finally { setLoadingToken(false); }
+    }, []);
 
     const loadMappingProfiles = useCallback(async () => {
         try {
@@ -42,38 +57,26 @@ export default function IntegrationsPage({ shell }) {
         return () => {
             shell?.setHeaderActions?.(null);
         };
-    }, [shell, t, loadMappingProfiles]);
-
-    const loadIcsToken = async () => {
-        try {
-            setLoadingToken(true);
-            // This is a presumed endpoint, let's add it to librepm.js if not present
-            const response = await librepm.getCalendarToken();
-            setIcsToken(response.token);
-        } catch (e) {
-            console.error("Error loading ICS token", e);
-            // Don't show error toast on initial load if it's just not found
-        } finally {
-            setLoadingToken(false);
-        }
-    };
+    }, [shell, t, loadMappingProfiles, loadIcsToken]);
 
     const handleRegenerateToken = async () => {
         const confirmed = await modal.confirm({ title: t("Are you sure you want to regenerate the token?") });
         if (!confirmed) return;
+        setLoadingToken(true);
         try {
             const response = await librepm.regenerateCalendarToken();
             setIcsToken(response.token);
+            setTokenError('');
             toast.success(t("Token regenerated successfully"));
         } catch (e) {
             toast.error(t("Error regenerating token"));
-        }
+        } finally { setLoadingToken(false); }
     };
 
     const handleExport = async (format) => {
         try {
-            if (format === 'csv' && !shell.currentProject) {
-                toast.warn(t("Please select a project to export as CSV."));
+            if ((!isDesktop || format === 'csv') && !shell.currentProject) {
+                toast.warn(t('Select a project'));
                 return;
             }
             
@@ -81,16 +84,15 @@ export default function IntegrationsPage({ shell }) {
                 if (format === 'json') await librepm.exportJsonDialog();
                 if (format === 'csv') await librepm.exportCsvDialog(shell.currentProject.id);
             } else {
-                // Web fallback
-                const blob = await librepm.exportDatabase(format === 'json' ? 'json' : 'db');
+                const blob = await librepm.exportProject(shell.currentProject.id, format);
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `librepm-backup-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'zip'}`;
+                a.download = `librepm-project-${shell.currentProject.id}.${format}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
             }
         } catch (e) {
             toast.error(`${t("Export failed")}: ${e.message}`);
@@ -124,7 +126,7 @@ export default function IntegrationsPage({ shell }) {
         }
     };
 
-    const icsUrl = `${librepm.getApiUrl()}/public/calendar/${icsToken}/feed.ics`;
+    const icsUrl = icsToken ? `${librepm.getApiUrl()}/public/calendar/${encodeURIComponent(icsToken)}/feed.ics` : '';
 
     return (
         <div className="container-fluid p-4">
@@ -139,17 +141,22 @@ export default function IntegrationsPage({ shell }) {
                     <p className="text-muted">{t("Use this link to sync your tasks with Google Calendar, Outlook or Apple Calendar.")}</p>
                     {loadingToken ? (
                         <div className="spinner-border spinner-border-sm"></div>
-                    ) : (
+                    ) : tokenError ? <div className="alert alert-warning mb-0" role="alert">{tokenError}<button className="btn btn-sm btn-outline-secondary ms-2" onClick={loadIcsToken}>{t('Retry')}</button></div> : (
                         <div className="input-group">
-                            <input type="text" className="form-control" value={icsUrl} readOnly />
-                            <button className="btn btn-outline-secondary" onClick={() => { navigator.clipboard.writeText(icsUrl); toast.success(t("Copied to clipboard")); }}>
+                            <input type="text" className="form-control" aria-label={t('External Calendar (iCal)')} value={icsUrl} readOnly />
+                            <button className="btn btn-outline-secondary" aria-label={t('Copied to clipboard')} onClick={async () => {
+                                try {
+                                    await navigator.clipboard.writeText(icsUrl);
+                                    toast.success(t('Copied to clipboard'));
+                                } catch (error) { toast.error(`${t('Error')}: ${error.message}`); }
+                            }}>
                                 <i className="bi bi-clipboard"></i>
                             </button>
                         </div>
                     )}
                 </div>
                 <div className="card-footer bg-light">
-                    <button className="btn btn-sm btn-outline-secondary" onClick={handleRegenerateToken}>
+                    <button className="btn btn-sm btn-outline-secondary" disabled={loadingToken} onClick={handleRegenerateToken}>
                         {t("Regenerate Token")}
                     </button>
                 </div>
@@ -166,21 +173,21 @@ export default function IntegrationsPage({ shell }) {
                             <h6>{t("Export")}</h6>
                             <p className="small text-muted">{t("Export your data in various formats.")}</p>
                             <div className="d-flex gap-2">
-                                <button className="btn btn-primary" onClick={() => handleExport('json')}>
-                                    <i className="bi bi-box-arrow-down me-2"></i>{t("Export JSON")}
+                                <button className="btn btn-primary" disabled={!isDesktop && !shell.currentProject} onClick={() => handleExport('json')}>
+                                    <i className="bi bi-box-arrow-down me-2"></i>{t(isDesktop ? 'Export JSON' : 'Export JSON (Project)')}
                                 </button>
                                 <button className="btn btn-secondary" onClick={() => handleExport('csv')} disabled={!shell.currentProject}>
                                     <i className="bi bi-file-earmark-spreadsheet me-2"></i>{t("Export CSV (Project)")}
                                 </button>
                             </div>
                         </div>
-                        <div className="col-md-6">
+                        {isDesktop && <div className="col-md-6">
                             <h6>{t("Import")}</h6>
                             <p className="small text-muted">{t("Import data from a JSON backup. This will overwrite current data.")}</p>
                             <button className="btn btn-danger" onClick={handleImport}>
                                 <i className="bi bi-box-arrow-in-up me-2"></i>{t("Import JSON")}
                             </button>
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </div>

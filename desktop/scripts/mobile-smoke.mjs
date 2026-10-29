@@ -230,6 +230,8 @@ const drawerExpression = `(() => {
       backdropVisible: backdrop ? getComputedStyle(backdrop).visibility : null,
       navLinkHeight: link ? Math.round(link.getBoundingClientRect().height) : 0,
       focusInsideDrawer: sidebar.contains(document.activeElement),
+      activeElement: document.activeElement?.outerHTML?.slice(0, 180),
+      documentFocused: document.hasFocus(),
     });
   }, 420));
 })()`;
@@ -275,6 +277,19 @@ try {
   const { send } = connection;
   await send("Page.enable");
   await send("Runtime.enable");
+  await send("Page.bringToFront");
+
+  const waitForHarness = async () => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const ready = await send("Runtime.evaluate", {
+        expression: "Boolean(document.querySelector('.jl-sidebar') && document.querySelector('.jl-content tbody td') && document.fonts.status === 'loaded')",
+        returnByValue: true,
+      });
+      if (ready.result.value) return;
+      await sleep(125);
+    }
+    throw new Error("La pagina di verifica non è pronta: controllare rete e console del renderer.");
+  };
 
   const results = [];
   for (const width of [320, 375, 390, 768, 1280]) {
@@ -287,7 +302,7 @@ try {
       screenHeight: width < 640 ? 844 : 1024,
     });
     await send("Page.navigate", { url: targetUrl });
-    await sleep(1100);
+    await waitForHarness();
     const evaluation = await send("Runtime.evaluate", {
       expression: measureExpression,
       returnByValue: true,
@@ -306,7 +321,7 @@ try {
     screenWidth: 390, screenHeight: 844,
   });
   await send("Page.navigate", { url: targetUrl });
-  await sleep(1100);
+  await waitForHarness();
 
   const openEvaluation = await send("Runtime.evaluate", {
     expression: drawerExpression, returnByValue: true, awaitPromise: true,

@@ -1,6 +1,8 @@
 package com.lorenzodm.librepm.api.controller;
 
 import com.lorenzodm.librepm.api.exception.ResourceNotFoundException;
+import com.lorenzodm.librepm.api.exception.BadRequestException;
+import com.lorenzodm.librepm.api.exception.ConflictException;
 import com.lorenzodm.librepm.core.entity.*;
 import com.lorenzodm.librepm.repository.*;
 import org.springframework.http.ResponseEntity;
@@ -60,8 +62,7 @@ public class ChangeControlController {
     public ResponseEntity<Map<String, Object>> updateRequest(
             @PathVariable String projectId, @PathVariable String crId,
             @RequestBody Map<String, Object> body) {
-        ChangeRequest cr = crRepo.findById(crId)
-                .orElseThrow(() -> new ResourceNotFoundException("ChangeRequest not found: " + crId));
+        ChangeRequest cr = getRequest(projectId, crId);
         if (body.containsKey("title")) cr.setTitle((String) body.get("title"));
         if (body.containsKey("description")) cr.setDescription((String) body.get("description"));
         if (body.containsKey("motivation")) cr.setMotivation((String) body.get("motivation"));
@@ -83,7 +84,7 @@ public class ChangeControlController {
 
     @DeleteMapping("/requests/{crId}")
     public ResponseEntity<Void> deleteRequest(@PathVariable String projectId, @PathVariable String crId) {
-        crRepo.deleteById(crId);
+        crRepo.delete(getRequest(projectId, crId));
         return ResponseEntity.noContent().build();
     }
 
@@ -104,7 +105,9 @@ public class ChangeControlController {
         b.setDescription((String) body.get("description"));
         b.setBranchType((String) body.getOrDefault("branchType", "SCENARIO"));
         b.setStatus("ACTIVE");
-        b.setChangeRequestId((String) body.get("changeRequestId"));
+        String changeRequestId = (String) body.get("changeRequestId");
+        if (changeRequestId != null) getRequest(projectId, changeRequestId);
+        b.setChangeRequestId(changeRequestId);
         b.setCreatedBy((String) body.get("createdBy"));
         b.setSnapshotJson((String) body.get("snapshotJson"));
         return ResponseEntity.ok(branchToMap(branchRepo.save(b)));
@@ -114,37 +117,46 @@ public class ChangeControlController {
     public ResponseEntity<Map<String, Object>> updateBranch(
             @PathVariable String projectId, @PathVariable String branchId,
             @RequestBody Map<String, Object> body) {
-        ProjectBranch b = branchRepo.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("ProjectBranch not found: " + branchId));
+        ProjectBranch b = getBranch(projectId, branchId);
+        if (body.containsKey("status")) {
+            String status = (String) body.get("status");
+            if ("MERGED".equals(status)) {
+                throw new ConflictException("L'unione delle modifiche nel progetto non è ancora disponibile. "
+                        + "Nessuna modifica è stata applicata; il ramo conserva lo stato precedente.");
+            }
+            if (status == null || !Set.of("ACTIVE", "APPROVED", "REJECTED", "ARCHIVED").contains(status)) {
+                throw new BadRequestException("Stato del ramo non valido.");
+            }
+        }
         if (body.containsKey("name")) b.setName((String) body.get("name"));
         if (body.containsKey("description")) b.setDescription((String) body.get("description"));
         if (body.containsKey("status")) {
             String newStatus = (String) body.get("status");
             b.setStatus(newStatus);
-            if ("MERGED".equals(newStatus) && b.getMergedAt() == null) {
-                b.setMergedAt(Instant.now());
-            }
         }
         return ResponseEntity.ok(branchToMap(branchRepo.save(b)));
     }
 
     @DeleteMapping("/branches/{branchId}")
     public ResponseEntity<Void> deleteBranch(@PathVariable String projectId, @PathVariable String branchId) {
-        branchRepo.deleteById(branchId);
+        branchRepo.delete(getBranch(projectId, branchId));
         return ResponseEntity.noContent().build();
     }
 
     // =========== BRANCH MODIFICATIONS ===========
 
     @GetMapping("/branches/{branchId}/modifications")
-    public ResponseEntity<List<Map<String, Object>>> listModifications(@PathVariable String branchId) {
+    public ResponseEntity<List<Map<String, Object>>> listModifications(
+            @PathVariable String projectId, @PathVariable String branchId) {
+        getBranch(projectId, branchId);
         return ResponseEntity.ok(modRepo.findByBranchIdOrderByModifiedAtDesc(branchId)
                 .stream().map(this::modToMap).toList());
     }
 
     @PostMapping("/branches/{branchId}/modifications")
     public ResponseEntity<Map<String, Object>> addModification(
-            @PathVariable String branchId, @RequestBody Map<String, Object> body) {
+            @PathVariable String projectId, @PathVariable String branchId, @RequestBody Map<String, Object> body) {
+        getBranch(projectId, branchId);
         BranchModification m = new BranchModification();
         m.setBranchId(branchId);
         m.setEntityType((String) body.get("entityType"));
@@ -156,8 +168,13 @@ public class ChangeControlController {
     }
 
     @DeleteMapping("/branches/{branchId}/modifications/{modId}")
-    public ResponseEntity<Void> deleteModification(@PathVariable String branchId, @PathVariable String modId) {
-        modRepo.deleteById(modId);
+    public ResponseEntity<Void> deleteModification(
+            @PathVariable String projectId, @PathVariable String branchId, @PathVariable String modId) {
+        getBranch(projectId, branchId);
+        BranchModification modification = modRepo.findById(modId)
+                .filter(m -> Objects.equals(m.getBranchId(), branchId))
+                .orElseThrow(() -> new ResourceNotFoundException("BranchModification not found: " + modId));
+        modRepo.delete(modification);
         return ResponseEntity.noContent().build();
     }
 
@@ -178,8 +195,12 @@ public class ChangeControlController {
         d.setDecision((String) body.getOrDefault("decision", ""));
         d.setRationale((String) body.get("rationale"));
         d.setDecidedBy((String) body.get("decidedBy"));
-        d.setBranchId((String) body.get("branchId"));
-        d.setChangeRequestId((String) body.get("changeRequestId"));
+        String branchId = (String) body.get("branchId");
+        if (branchId != null) getBranch(projectId, branchId);
+        d.setBranchId(branchId);
+        String changeRequestId = (String) body.get("changeRequestId");
+        if (changeRequestId != null) getRequest(projectId, changeRequestId);
+        d.setChangeRequestId(changeRequestId);
         d.setImpactSummary((String) body.get("impactSummary"));
         return ResponseEntity.ok(decisionToMap(decisionRepo.save(d)));
     }
@@ -188,8 +209,7 @@ public class ChangeControlController {
     public ResponseEntity<Map<String, Object>> updateDecision(
             @PathVariable String projectId, @PathVariable String decisionId,
             @RequestBody Map<String, Object> body) {
-        DecisionLog d = decisionRepo.findById(decisionId)
-                .orElseThrow(() -> new ResourceNotFoundException("DecisionLog not found: " + decisionId));
+        DecisionLog d = getDecision(projectId, decisionId);
         if (body.containsKey("title")) d.setTitle((String) body.get("title"));
         if (body.containsKey("decision")) d.setDecision((String) body.get("decision"));
         if (body.containsKey("rationale")) d.setRationale((String) body.get("rationale"));
@@ -199,11 +219,26 @@ public class ChangeControlController {
 
     @DeleteMapping("/decisions/{decisionId}")
     public ResponseEntity<Void> deleteDecision(@PathVariable String projectId, @PathVariable String decisionId) {
-        decisionRepo.deleteById(decisionId);
+        decisionRepo.delete(getDecision(projectId, decisionId));
         return ResponseEntity.noContent().build();
     }
 
     // =========== MAPPERS ===========
+
+    private ChangeRequest getRequest(String projectId, String id) {
+        return crRepo.findById(id).filter(cr -> Objects.equals(cr.getProjectId(), projectId))
+                .orElseThrow(() -> new ResourceNotFoundException("ChangeRequest not found: " + id));
+    }
+
+    private ProjectBranch getBranch(String projectId, String id) {
+        return branchRepo.findById(id).filter(b -> Objects.equals(b.getSourceProjectId(), projectId))
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectBranch not found: " + id));
+    }
+
+    private DecisionLog getDecision(String projectId, String id) {
+        return decisionRepo.findById(id).filter(d -> Objects.equals(d.getProjectId(), projectId))
+                .orElseThrow(() -> new ResourceNotFoundException("DecisionLog not found: " + id));
+    }
 
     private Map<String, Object> crToMap(ChangeRequest cr) {
         Map<String, Object> m = new LinkedHashMap<>();

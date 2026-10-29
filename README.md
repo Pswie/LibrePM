@@ -39,7 +39,7 @@ It enables individuals, teams, nonprofits, SMEs, professional studios, public-se
 - Budget, cost lines, fund sources, commitments, burn rate, eligibility
 - Grant and call registry, candidature tracking, submission packages, reporting obligations
 - Donor registry, sponsor commitments, stakeholder governance
-- Change control, scenario branches, compare and selective merge
+- Change control and scenario branch proposals; selective merge and conflict resolution are planned
 - Evidence packs exportable for audit, sponsor review and grant reporting
 
 ### Executive Dashboard & Charter
@@ -152,6 +152,9 @@ npm run dev
 ```
 
 ## Configuration
+
+For the Angeli del Futuro cloud fork, see [INTERVENTI.md](INTERVENTI.md) for the
+audit and remaining work, and [DEPLOY.md](DEPLOY.md) for deployment and recovery.
 
 The application is configured via `application.yml`:
 

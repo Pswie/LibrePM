@@ -67,7 +67,7 @@ export default function FocusHistory({ selectedTask }) {
 
     useEffect(() => {
         refresh();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [selectedTask?.id]);
 
     // “soft” refresh while a timer is active (to see today's totals update)
@@ -75,7 +75,7 @@ export default function FocusHistory({ selectedTask }) {
         let t = null;
         t = setInterval(() => refresh(), 5000); // Less aggressive refresh (5s)
         return () => clearInterval(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, []);
 
     const taskStats = useMemo(() => {

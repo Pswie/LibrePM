@@ -110,7 +110,7 @@ export default function PlannerTable({
         }
         if (e.key === "ArrowRight") {
             // su input: solo se caret Ã¨ a fine
-            // per semplicitÃ : con CTRL+ArrowRight nav
+            // per semplicitÃ : con CTRL+ArrowRight nav
             if (e.ctrlKey) {
                 e.preventDefault();
                 moveBy(0, 1);
@@ -136,7 +136,7 @@ export default function PlannerTable({
             const el = refs.current[`${rows[ri].id}:${ck}`];
             if (el && document.activeElement !== el && typeof el.focus === "function") el.focus();
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, []);
 
     function isRowEmptyLike(r) {

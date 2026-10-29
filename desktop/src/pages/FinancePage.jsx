@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { librepm } from '@api/librepm.js';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
@@ -8,14 +8,24 @@ import { useTranslation } from 'react-i18next';
  * Tabs: Budget, Funding, Costs, Analytics.
  */
 export default function FinancePage({ shell }) {
+    return <ProjectFinance key={shell?.currentProject?.id || 'none'} shell={shell} />;
+}
+
+function ProjectFinance({ shell }) {
     const { t } = useTranslation();
     const projectId = shell?.currentProject?.id;
     const [tab, setTab] = useState('budget');
     const [loading, setLoading] = useState(false);
+    const [loadingLines, setLoadingLines] = useState(false);
+    const [loadError, setLoadError] = useState('');
+    const [reload, setReload] = useState(0);
+    const lineRequest = useRef(0);
 
     // Budget state
     const [budgets, setBudgets] = useState([]);
     const [selectedBudget, setSelectedBudget] = useState(null);
+    const selectedBudgetId = useRef(null);
+    selectedBudgetId.current = selectedBudget?.id;
     const [lines, setLines] = useState([]);
 
     // Funding state
@@ -31,50 +41,44 @@ export default function FinancePage({ shell }) {
     }, [shell, t]);
 
     // Load data
-    const loadBudgets = useCallback(async () => {
-        if (!projectId) return;
-        try {
-            const list = await librepm.financeBudgetsList(projectId);
-            setBudgets(list || []);
-            if (list?.length > 0 && !selectedBudget) {
-                setSelectedBudget(list[0]);
-                const l = await librepm.financeLinesList(projectId, list[0].id);
-                setLines(l || []);
-            }
-        } catch (e) {
-            console.error('[Finance] Error loading budgets:', e);
-        }
-    }, [projectId, selectedBudget]);
-
     const loadLines = useCallback(async (budgetId) => {
         if (!projectId || !budgetId) return;
+        const requestId = ++lineRequest.current;
+        setLines([]);
+        setLoadingLines(true);
+        setLoadError('');
         try {
             const l = await librepm.financeLinesList(projectId, budgetId);
-            setLines(l || []);
-        } catch (e) { console.error(e); }
-    }, [projectId]);
-
-    const loadFunding = useCallback(async () => {
-        if (!projectId) return;
-        try {
-            const f = await librepm.financeFundingList(projectId);
-            setFunding(f || []);
-        } catch (e) { console.error(e); }
-    }, [projectId]);
-
-    const loadAnalytics = useCallback(async () => {
-        if (!projectId) return;
-        try {
-            const a = await librepm.financeAnalytics(projectId);
-            setAnalytics(a);
-        } catch (e) { console.error(e); }
+            if (requestId === lineRequest.current) setLines(l || []);
+        } catch (e) {
+            if (requestId === lineRequest.current) setLoadError(e.message);
+        } finally { if (requestId === lineRequest.current) setLoadingLines(false); }
     }, [projectId]);
 
     useEffect(() => {
-        if (tab === 'budget') loadBudgets();
-        else if (tab === 'funding') loadFunding();
-        else if (tab === 'analytics') loadAnalytics();
-    }, [tab, projectId]);
+        if (!projectId) return undefined;
+        let cancelled = false;
+        setLoading(true);
+        setLoadError('');
+        const request = tab === 'budget' ? librepm.financeBudgetsList(projectId)
+            : tab === 'funding' ? librepm.financeFundingList(projectId) : librepm.financeAnalytics(projectId);
+        request.then(data => {
+            if (cancelled) return;
+            if (tab === 'budget') {
+                setBudgets(data || []);
+                setSelectedBudget(previous => data?.find(b => b.id === previous?.id) || data?.[0] || null);
+            } else if (tab === 'funding') setFunding(data || []);
+            else setAnalytics(data);
+        }).catch(error => { if (!cancelled) setLoadError(error.message); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [tab, projectId, reload]);
+
+    useEffect(() => {
+        if (selectedBudget?.id) loadLines(selectedBudget.id);
+        else setLines([]);
+        return () => { lineRequest.current += 1; };
+    }, [selectedBudget?.id, loadLines, reload]);
 
     // Handlers
     const handleCreateBudget = async () => {
@@ -89,13 +93,14 @@ export default function FinancePage({ shell }) {
 
     const handleAddLine = async () => {
         if (!selectedBudget) return;
+        const budgetId = selectedBudget.id;
         try {
-            const l = await librepm.financeLineCreate(projectId, selectedBudget.id, {
+            const l = await librepm.financeLineCreate(projectId, budgetId, {
                 name: t("New budget line"),
                 category: 'MISC',
                 plannedAmount: 0,
             });
-            setLines(prev => [...prev, l]);
+            if (selectedBudgetId.current === budgetId) setLines(prev => [...prev, l]);
         } catch (e) { toast.error(t("Error") + ': ' + e.message); }
     };
 
@@ -157,16 +162,19 @@ export default function FinancePage({ shell }) {
                 ))}
             </ul>
 
+            {loading && <p role="status">{t('Loading...')}</p>}
+            {loadError && <div className="alert alert-danger" role="alert">{loadError}<button className="btn btn-sm btn-outline-danger ms-2" onClick={() => setReload(v => v + 1)}>{t('Retry')}</button></div>}
+
             {/* Budget Tab */}
             {tab === 'budget' && (
                 <div>
                     <div className="d-flex align-items-center gap-2 mb-3">
                         <select className="form-select form-select-sm" style={{ width: 250 }}
                                 value={selectedBudget?.id || ''}
-                                onChange={async (e) => {
+                                aria-label={t('Budget')}
+                                onChange={(e) => {
                                     const b = budgets.find(x => x.id === e.target.value);
                                     setSelectedBudget(b);
-                                    if (b) await loadLines(b.id);
                                 }}>
                             {budgets.map(b => (
                                 <option key={b.id} value={b.id}>{b.name} (v{b.version}) — {b.status}</option>
@@ -223,8 +231,10 @@ export default function FinancePage({ shell }) {
                                                 <td>
                                                     <button className="btn btn-sm btn-link text-danger p-0"
                                                             onClick={async () => {
-                                                                await librepm.financeLineDelete(projectId, line.id);
-                                                                setLines(prev => prev.filter(l => l.id !== line.id));
+                                                                try {
+                                                                    await librepm.financeLineDelete(projectId, line.id);
+                                                                    setLines(prev => prev.filter(l => l.id !== line.id));
+                                                                } catch (error) { toast.error(`${t('Error')}: ${error.message}`); }
                                                             }}>
                                                         <i className="bi bi-trash"></i>
                                                     </button>
@@ -244,7 +254,8 @@ export default function FinancePage({ shell }) {
                                     </tfoot>
                                 </table>
                             </div>
-                            <button className="btn btn-sm btn-outline-primary" onClick={handleAddLine}>
+                            {loadingLines && <p role="status">{t('Loading...')}</p>}
+                            <button className="btn btn-sm btn-outline-primary" disabled={loading || loadingLines} onClick={handleAddLine}>
                                 <i className="bi bi-plus me-1"></i>{t("Add Line")}
                             </button>
                         </>
@@ -325,8 +336,10 @@ export default function FinancePage({ shell }) {
                                                 <td>
                                                     <button className="btn btn-sm btn-link text-danger p-0"
                                                         onClick={async () => {
-                                                            await librepm.financeFundingDelete(projectId, f.id);
-                                                            setFunding(prev => prev.filter(x => x.id !== f.id));
+                                                            try {
+                                                                await librepm.financeFundingDelete(projectId, f.id);
+                                                                setFunding(prev => prev.filter(x => x.id !== f.id));
+                                                            } catch (error) { toast.error(`${t('Error')}: ${error.message}`); }
                                                         }}>
                                                         <i className="bi bi-trash"></i>
                                                     </button>

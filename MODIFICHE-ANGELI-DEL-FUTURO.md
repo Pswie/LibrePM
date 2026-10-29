@@ -25,6 +25,27 @@ state rimosse da nessun file.
 
 ---
 
+## 29 ottobre 2026 — revisione funzionale e controlli di rilascio
+
+- Identità cloud ricavata dal token verificato anche nelle API storiche; verifica
+  issuer conservata quando è configurata un'audience.
+- Note, backlink, ricerca e risultati import/export isolati per utente/progetto;
+  ricerca compatibile con MySQL e rispetto delle note riservate per ruolo.
+- Appartenenza delle risorse a progetto/bando verificata in finanza, bandi e
+  controllo modifiche; importi e date validati; spese collegate ai consuntivi.
+- Requisiti e rendicontazioni modificabili tramite moduli con salvataggio
+  esplicito; risposte obsolete ignorate al cambio progetto o budget.
+- Download autenticati, vere esportazioni progetto JSON/CSV, gestione degli
+  errori e collegamenti alle note corretti.
+- Menu mobile con focus e navigazione da tastiera; schermata di attesa adattiva;
+  riuso del logo PNG già presente per alleggerire il caricamento.
+- Forecast corretto; merge selettivo e storico non simulati quando non
+  supportati. Limiti e lavoro residuo descritti in [INTERVENTI.md](INTERVENTI.md).
+- Test automatici ampliati e CI con test MySQL, lockfile, lint e build.
+
+Procedura e stato effettivo del rilascio in [DEPLOY.md](DEPLOY.md). La presenza
+di queste modifiche nel repository non implica che siano già pubblicate.
+
 ## 25 luglio 2026 (bis) — usabile dal telefono, e un accesso solo
 
 ### Il layout su schermo stretto

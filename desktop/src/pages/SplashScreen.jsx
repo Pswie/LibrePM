@@ -1,4 +1,4 @@
-import LoadingIcon from "../assets/Loading.svg";
+import LoadingIcon from "../assets/icon.png";
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -22,7 +22,7 @@ export default function SplashScreen({ message }) {
                     src={LoadingIcon}
                     alt="LibrePM Loading" 
                     className="logout-logo mb-4"
-                    style={{ width: "500px", height: "500px" }}
+                    style={{ width: "min(500px, 80vw)", height: "auto", backgroundColor: "#fff", borderRadius: "16px" }}
                 />
                 <h4 className="fw-bold mb-3">LibrePM</h4>
                 <div className="d-flex align-items-center justify-content-center gap-2 text-muted">
