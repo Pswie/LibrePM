@@ -27,7 +27,8 @@ import java.util.Set;
         @Index(name = "idx_note_project_updated", columnList = "project_id, updated_at"),
         @Index(name = "idx_note_parent", columnList = "parent_type, parent_id")
 })
-@SQLDelete(sql = "UPDATE notes SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+@SQLDelete(sql = "UPDATE notes SET deleted_at = CURRENT_TIMESTAMP, version = version + 1 WHERE id = ? AND version = ?",
+        verify = org.hibernate.jdbc.Expectation.RowCount.class)
 @Where(clause = "deleted_at IS NULL")
 public class Note extends BaseSyncEntity {
 

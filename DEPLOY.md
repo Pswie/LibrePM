@@ -1,5 +1,13 @@
 # Rilascio della sezione bandi
 
+Aggiornamento del 30 ottobre 2026: l'utente ha confermato che Aiven era vuoto e
+ha scelto di preparare PostgreSQL su Supabase per entrambe le applicazioni.
+Il percorso attuale è [SUPABASE-POSTGRES.md](SUPABASE-POSTGRES.md), con profilo
+`cloud-postgres`, schema privato `librepm` e Clerk invariato. Non occorrono
+recupero o esportazione da Aiven. I dettagli Aiven del 29 ottobre qui sotto
+descrivono la configurazione online precedente; nessuna risorsa online è
+stata aggiornata durante la preparazione locale.
+
 Verifica del 29 ottobre 2026. Il backend è su Google Cloud Run; l'interfaccia
 è su Vercel. Aggiornare soltanto Google non aggiorna le schermate.
 
@@ -15,7 +23,7 @@ Verifica del 29 ottobre 2026. Il backend è su Google Cloud Run; l'interfaccia
 | Deployment frontend attuale | `dpl_H8JZwmqtyTgGqKeZQn5xxGefWF4v` |
 | Database | Aiven MySQL, database `librepm`, condiviso come servizio con il gestionale |
 
-## Blocco riscontrato e ripristino Aiven
+## Configurazione Aiven precedente — verifica del 29 ottobre
 
 Il backend attuale risponde **503**. I log riportano `UnknownHostException`
 per `mysql-275a161-angelidelfuturoaps-8c60.a.aivencloud.com`: anche la
@@ -63,10 +71,10 @@ npm run build --prefix desktop
 npm run build:web --prefix desktop
 ```
 
-Il test `CloudMySqlSchemaIT` deve risultare eseguito: se manca un MySQL di test
-o Docker, può essere saltato. Non utilizzare il database di produzione come
-database di test. La workflow `Verify Cloud` usa un MySQL 8 effimero e verifica
-anche le migrazioni. La build web locale richiede le variabili pubbliche del
+I test `CloudPostgresSchemaIT` e `CloudMySqlSchemaIT` devono risultare eseguiti
+con database di collaudo isolati: una prova saltata non è una prova passata.
+La workflow `Verify Cloud` usa PostgreSQL 17 e MySQL 8 effimeri e verifica
+le rispettive migrazioni. La build web locale richiede le variabili pubbliche del
 progetto Vercel; una build con valori fittizi verifica soltanto la compilazione.
 
 Prima della pubblicazione: salvare un backup verificato del database e rendere
@@ -75,7 +83,10 @@ disponibile il sorgente completo della versione rilasciata nel branch
 
 ## Google Cloud Run
 
-Dopo il ripristino del database e le verifiche, dalla radice di LibrePM:
+Dopo aver predisposto il nuovo schema PostgreSQL e le verifiche, dalla radice
+di LibrePM. Prima della promozione configurare sulla revisione candidata il
+profilo, le due connessioni runtime/migrator e i secret della nuova guida:
+il solo deploy del sorgente conserva ancora le vecchie variabili MySQL.
 
 ```powershell
 gcloud auth list --filter=status:ACTIVE
@@ -157,5 +168,7 @@ e [rollback Vercel](https://vercel.com/docs/cli/rollback).
 ## Stato della pubblicazione
 
 Nessun aggiornamento online eseguito durante questa analisi. Prima del rilascio
-occorre risolvere il blocco Aiven e completare i collaudi. Google e Vercel hanno
-sessioni CLI valide; manca la verifica del servizio dall'account Aiven.
+occorre creare/configurare il progetto Supabase scelto e i suoi secret,
+applicare le migrazioni private e completare il collaudo della revisione
+candidata. Lo stato delle sessioni Google/Vercel riportato sopra è quello
+verificato il 29 ottobre e va ricontrollato al momento del rilascio.

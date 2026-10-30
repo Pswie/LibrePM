@@ -44,6 +44,7 @@ import GanttPage from "../pages/GanttPage.jsx";
 import ChartPage from "../pages/ChartPage.jsx";
 import TemplatesPage from "../pages/TemplatesPage.jsx";
 import IntegrationsPage from "../pages/IntegrationsPage.jsx";
+import { initialSuiteProject } from "../utils/suiteProjects.js";
 import GuidesPage from "../pages/GuidesPage.jsx";
 import InboxPage from "../pages/InboxPage.jsx";
 import TimeTrackingPage from "../pages/TimeTrackingPage.jsx";
@@ -421,10 +422,16 @@ export default function AppShell({ initialUser, onLogout }) {
                 const projectsList = await librepm.projectsList();
                 setProjects(projectsList);
 
-                if (projectsList.length > 0) {
-                    setCurrentProject(projectsList[0]);
-                    librepm.setCurrentProject(projectsList[0].id);
-                }
+                const selectedProject = await initialSuiteProject({
+                    search: window.location.search,
+                    projects: projectsList,
+                    loadContext: librepm.suiteProject,
+                    loadSelection: librepm.suiteSelection,
+                    loadProject: librepm.projectsGet,
+                });
+                setCurrentProject(selectedProject);
+                librepm.setCurrentProject(selectedProject?.id);
+                if (new URLSearchParams(window.location.search).has('suiteProject')) setActiveId('integrations');
 
                 // Load workspace profile modules
                 try {
@@ -614,6 +621,14 @@ export default function AppShell({ initialUser, onLogout }) {
                                 <i className="bi bi-arrow-clockwise me-2"></i>
                                 {t("Retry")}
                             </button>
+                            {new URLSearchParams(window.location.search).has('suiteProject') && <button
+                                className="btn btn-outline-secondary"
+                                onClick={() => {
+                                    const url = new URL(window.location.href);
+                                    url.searchParams.delete('suiteProject');
+                                    window.location.assign(url.href);
+                                }}
+                            >Apri elenco progetti</button>}
                             {onLogout && (
                                 <button
                                     className="btn btn-outline-secondary"

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { itIT } from "@clerk/localizations";
 import WebAuthGate from "./WebAuthGate.jsx";
+import { clerkReturnUrl, clerkSatelliteOptions } from "./clerk-sso.js";
 import "./i18n";
 import { ModalProvider } from "./context/ModalContext";
 
@@ -35,68 +36,36 @@ import "./styles/adf-theme.css";
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-/**
- * Configurazione da applicazione satellite di Clerk.
- *
- * Il problema che risolve: le tre applicazioni dell'associazione stanno su tre
- * domini registrabili diversi (`terzo-settore.vercel.app`,
- * `adf-bandi-collaudo.vercel.app`, `adf-gestionale-collaudo.vercel.app`). La
- * sessione di Clerk vive in un cookie, e `vercel.app` è nella Public Suffix
- * List: il browser **rifiuta** di impostare un cookie valido per `.vercel.app`.
- * Condividere la stessa istanza Clerk non basta quindi a condividere la
- * sessione — chi entrava dal sito doveva riautenticarsi qui, che è esattamente
- * ciò che l'architettura a "una sola identità" prometteva di evitare.
- *
- * Le satellite domains sono il meccanismo che Clerk ha progettato per questo
- * caso: un dominio primario tiene la sessione, i satelliti la leggono con uno
- * scambio via redirect, senza cookie di terze parti — che i browser bloccano.
- *
- * Vale solo con `VITE_CLERK_PRIMARY_URL` impostata. Senza quella variabile
- * l'applicazione resta autonoma con la sua schermata di accesso: è così che
- * continua a funzionare lo sviluppo locale, dove un satellite puntato a un
- * primario inesistente non riuscirebbe ad autenticare nessuno. Il desktop non
- * passa da qui.
- *
- * Da fare fuori dal codice, una volta sola: nel pannello Clerk questo dominio
- * va dichiarato satellite accanto al primario, altrimenti lo scambio viene
- * rifiutato. In modalità sviluppo la funzione è gratuita.
- */
-const primaryUrl = import.meta.env.VITE_CLERK_PRIMARY_URL?.replace(/\/$/, "");
-const satelliteProps = primaryUrl
-    ? {
-        isSatellite: true,
-        // Il proprio dominio, non quello del primario: la chiave pubblica è la
-        // stessa per tutte e tre le applicazioni, e questo è il modo in cui
-        // Clerk distingue chi sta chiedendo.
-        domain: window.location.host,
-        // La schermata di accesso è quella del sito: /admin monta <SignIn />.
-        signInUrl: `${primaryUrl}/admin`,
-        signUpUrl: `${primaryUrl}/admin`,
-    }
-    : {};
+// DEV instances synchronize browser state through Clerk's own navigation;
+// production cookie sharing is not assumed for the existing test instance.
+const primaryUrl = import.meta.env.VITE_CLERK_PRIMARY_URL;
+let satelliteProps = {};
+let configurationError = false;
+try {
+    satelliteProps = clerkSatelliteOptions(primaryUrl, window.location);
+} catch {
+    configurationError = true;
+}
+const returnUrl = clerkReturnUrl(window.location);
 
 const container = document.getElementById("root");
 const root = createRoot(container);
 
-if (!publishableKey) {
+if (!publishableKey || configurationError) {
     // Fallire a voce alta: senza chiave Clerk la pagina si caricherebbe e
     // resterebbe muta, e il motivo non sarebbe visibile da nessuna parte.
     root.render(
         <div style={{ padding: "2rem", fontFamily: "system-ui", maxWidth: "40rem" }}>
-            <h3>Configurazione incompleta</h3>
-            <p>
-                Manca <code>VITE_CLERK_PUBLISHABLE_KEY</code>: senza la chiave pubblica di Clerk la
-                sezione bandi non può autenticare nessuno. Va impostata fra le variabili d'ambiente
-                del progetto.
-            </p>
+            <h3>Accesso non disponibile</h3>
+            <p>Riprova tra poco o contatta chi gestisce il servizio.</p>
         </div>
     );
 } else {
     root.render(
         <StrictMode>
-            <ClerkProvider publishableKey={publishableKey} localization={itIT} {...satelliteProps}>
+            <ClerkProvider publishableKey={publishableKey} localization={itIT} signInFallbackRedirectUrl={returnUrl} signUpFallbackRedirectUrl={returnUrl} {...satelliteProps}>
                 <ModalProvider>
-                    <WebAuthGate isSatellite={Boolean(primaryUrl)} />
+                    <WebAuthGate isSatellite={satelliteProps.isSatellite === true} />
                 </ModalProvider>
             </ClerkProvider>
         </StrictMode>

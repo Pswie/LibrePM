@@ -83,15 +83,32 @@ public class HealthController {
 
             db.put("status", "OK");
 
-            // Database file size
-            try (ResultSet rs = stmt.executeQuery("PRAGMA page_count")) {
-                if (rs.next()) {
-                    long pageCount = rs.getLong(1);
-                    try (Statement stmt2 = conn.createStatement();
-                         ResultSet rs2 = stmt2.executeQuery("PRAGMA page_size")) {
-                        if (rs2.next()) {
-                            long pageSize = rs2.getLong(1);
-                            db.put("sizeBytes", pageCount * pageSize);
+            // Only SQLite has PRAGMA/file pages. Managed database profiles use
+            // their own metadata without turning a healthy connection into ERROR.
+            String product = conn.getMetaData().getDatabaseProductName();
+            db.put("engine", product);
+            if ("PostgreSQL".equals(product)) {
+                try (ResultSet rs = stmt.executeQuery("SELECT pg_database_size(current_database())")) {
+                    if (rs.next()) {
+                        db.put("sizeBytes", rs.getLong(1));
+                    }
+                }
+            } else if ("MySQL".equals(product)) {
+                try (ResultSet rs = stmt.executeQuery("SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema=DATABASE()")) {
+                    if (rs.next()) {
+                        db.put("sizeBytes", rs.getLong(1));
+                    }
+                }
+            } else if ("SQLite".equals(product)) {
+                try (ResultSet rs = stmt.executeQuery("PRAGMA page_count")) {
+                    if (rs.next()) {
+                        long pageCount = rs.getLong(1);
+                        try (Statement stmt2 = conn.createStatement();
+                             ResultSet rs2 = stmt2.executeQuery("PRAGMA page_size")) {
+                            if (rs2.next()) {
+                                long pageSize = rs2.getLong(1);
+                                db.put("sizeBytes", pageCount * pageSize);
+                            }
                         }
                     }
                 }
@@ -103,6 +120,9 @@ public class HealthController {
                 if (rs.next()) {
                     db.put("migrationVersion", rs.getString(1));
                 }
+            } catch (java.sql.SQLException restrictedMetadata) {
+                // A runtime-only role intentionally has no access to migration history.
+                db.put("migrationVersion", "managed separately");
             }
 
             // Entity counts

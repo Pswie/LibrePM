@@ -1,0 +1,15 @@
+{
+  "canonicalRepository": "AssociaGo",
+  "canonicalDirectory": "integration",
+  "contractVersion": "1.0.0",
+  "files": [
+    {
+      "path": "suite-v1.openapi.json",
+      "sha256": "8544408ebb84dc3e5d8f2949f8eeb9e94d721e2dbb7d60a4e4c3f1578c49f383"
+    },
+    {
+      "path": "SUITE-V1-CONTRACT.md",
+      "sha256": "2128c237d5f589c0c062f20a368fd2235e3a43418b83d57322204703b589b11c"
+    }
+  ]
+}

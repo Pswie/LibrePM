@@ -35,7 +35,8 @@ import java.util.Set;
         @Index(name = "idx_task_created", columnList = "created_at"),
         @Index(name = "idx_task_parent", columnList = "parent_task_id")
 })
-@SQLDelete(sql = "UPDATE tasks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+@SQLDelete(sql = "UPDATE tasks SET deleted_at = CURRENT_TIMESTAMP, version = version + 1 WHERE id = ? AND version = ?",
+        verify = org.hibernate.jdbc.Expectation.RowCount.class)
 @Where(clause = "deleted_at IS NULL")
 public class Task extends BaseSyncEntity {
 

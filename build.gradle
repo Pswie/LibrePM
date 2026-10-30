@@ -40,11 +40,15 @@ dependencies {
 	// sul database condiviso con il gestionale.
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
+	// PostgreSQL/Supabase is opt-in; keep the existing MySQL and desktop drivers.
+	runtimeOnly 'org.postgresql:postgresql:42.7.14'
+
 	// Flyway
 	implementation 'org.flywaydb:flyway-core'
 	// Flyway 10+ tiene i dialetti fuori dal core: senza questo modulo le
 	// migrazioni MySQL non partono.
 	runtimeOnly 'org.flywaydb:flyway-mysql'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
 	// Logging
 	implementation 'org.springframework.boot:spring-boot-starter-logging'

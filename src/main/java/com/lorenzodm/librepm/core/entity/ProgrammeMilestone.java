@@ -18,7 +18,7 @@ public class ProgrammeMilestone {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Lob
+    // Keep the same textual representation on SQLite, MySQL and PostgreSQL.
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

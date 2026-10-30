@@ -4,6 +4,8 @@
 
 It enables individuals, teams, nonprofits, SMEs, professional studios, public-sector-adjacent organizations and research consortia to plan, finance, monitor, document and govern projects and programmes without relying on invasive telemetry or cloud lock-in.
 
+For the opt-in PostgreSQL/Supabase backend with a private schema and the existing Clerk login, see [SUPABASE-POSTGRES.md](SUPABASE-POSTGRES.md). SQLite desktop and MySQL cloud remain supported.
+
 ## Positioning
 
 | Axis | Summary |
@@ -161,6 +163,12 @@ The application is configured via `application.yml`:
 - `librepm.data.path` — root directory for database and asset storage
 - `librepm.assets.allowed-extensions` — whitelist of file types allowed for upload
 - `spring.profiles.active` — execution mode (`desktop`, `web`, `production`)
+
+## Project suite integration
+
+LibrePM hosts the shared project registry for AssociaGo and Bandi. Each application keeps its own operational data, while server APIs exchange project links and authorized summaries. Integration is disabled until explicitly configured.
+
+See the [integration guide](INTEGRAZIONE-SUITE.md), [versioned contract snapshot](integration/README.md), and [OpenAPI specification](integration/suite-v1.openapi.json).
 
 ## License
 

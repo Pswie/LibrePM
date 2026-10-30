@@ -50,6 +50,9 @@ Thumbs.db
 
 ### Local Configuration & Logs ###
 local.properties
+.env
+.env.local
+.env.suite.local
 *.log
 
 ### Project Files ###

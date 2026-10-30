@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     RedirectToSignIn,
     SignIn,
     useAuth,
-    useOrganization,
     useOrganizationList,
 } from "@clerk/clerk-react";
 import librepm from "./api/librepm";
 import App from "./App.jsx";
 import { ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from "./branding";
+import { clerkSignInReturnOptions } from "./clerk-sso.js";
+import { boundedTokenProvider, resolveWebAccess, WebAccessError } from "./web-access.js";
 
 /**
  * Guscio di autenticazione del profilo web (sezione bandi).
@@ -42,63 +43,54 @@ import { ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from "./branding";
  *   rimanda indietro senza mostrare nulla.
  */
 export default function WebAuthGate({ isSatellite = false }) {
-    const { isLoaded: authLoaded, isSignedIn, getToken, signOut } = useAuth();
-    const { organization } = useOrganization();
+    const { isLoaded: authLoaded, isSignedIn, getToken, signOut, userId, sessionId, orgId } = useAuth();
     const { isLoaded: orgsLoaded, setActive, userMemberships } = useOrganizationList({
         userMemberships: { infinite: true },
     });
 
     const [session, setSession] = useState(null);
     const [error, setError] = useState(null);
-    const resolving = useRef(false);
-
-    /**
-     * Attiva un'organizzazione se non ce n'è già una attiva.
-     *
-     * Serve perché nei session token Clerk v2 il ruolo arriva come `o.rol`, cioè
-     * il ruolo nell'organizzazione <em>attiva</em>: senza organizzazione attiva il
-     * token non porta nessun ruolo e il backend vede un utente senza permessi,
-     * pur avendo la persona un ruolo assegnato. Se una è già attiva non si tocca,
-     * altrimenti a ogni ricarica si tornerebbe alla prima dell'elenco.
-     */
-    const ensureActiveOrganization = useCallback(async () => {
-        if (organization) return;
-        if (!orgsLoaded || !setActive) return;
-
-        const memberships = userMemberships?.data ?? [];
-        if (memberships.length === 0) return;
-
-        try {
-            await setActive({ organization: memberships[0].organization.id });
-        } catch (e) {
-            console.warn("[WebAuthGate] Impossibile attivare l'organizzazione:", e);
-        }
-    }, [organization, orgsLoaded, setActive, userMemberships]);
+    const [retryAttempt, setRetryAttempt] = useState(0);
+    // Membership resources are objects recreated by the SDK. Depend on the
+    // selected ID, so a render cannot restart a failed request and erase it.
+    const organizationToActivate = !orgId && orgsLoaded && setActive
+        ? userMemberships?.data?.[0]?.organization?.id ?? null
+        : null;
 
     useEffect(() => {
-        if (!authLoaded || !isSignedIn || session || resolving.current) return;
-        resolving.current = true;
-
-        (async () => {
-            try {
-                // Il token si chiede a ogni richiesta e non si conserva: Clerk lo
-                // ruota, e una copia tenuta da parte scadrebbe in silenzio.
-                librepm.setTokenProvider(() => getToken());
-
-                await ensureActiveOrganization();
-                await librepm.init();
-
-                const me = await librepm.me();
-                librepm.setCurrentUser(me.id);
-                setSession({ user: me, roles: me.roles ?? [] });
-            } catch (e) {
-                console.error("[WebAuthGate] Risoluzione identità fallita:", e);
-                setError(e);
-            } finally {
-                resolving.current = false;
-            }
-        })();
-    }, [authLoaded, isSignedIn, session, getToken, ensureActiveOrganization]);
+        const controller = new AbortController();
+        let active = true;
+        setSession(null);
+        setError(null);
+        librepm.setCurrentUser(null);
+        if (!authLoaded || !isSignedIn) {
+            librepm.setTokenProvider(null);
+            return () => controller.abort();
+        }
+        librepm.setTokenProvider(boundedTokenProvider(getToken, controller.signal));
+        const overall = setTimeout(() => controller.abort(new WebAccessError('access', 'timeout')), 90000);
+        resolveWebAccess({ api: librepm, signal: controller.signal, activateOrganization: setActive, organizationId: organizationToActivate })
+            .then((resolved) => {
+                if (!active || controller.signal.aborted) return;
+                librepm.setCurrentUser(resolved.user.id);
+                setSession(resolved);
+            })
+            .catch((failure) => {
+                if (!active || (controller.signal.aborted && !(controller.signal.reason instanceof WebAccessError))) return;
+                const problem = controller.signal.reason instanceof WebAccessError ? controller.signal.reason : failure;
+                // Phase/code only: no SDK errors, credentials, request or response payloads.
+                console.warn('[Accesso progetti]', { phase: problem.phase, code: problem.code, status: problem.status });
+                setError(problem);
+            })
+            .finally(() => clearTimeout(overall));
+        return () => {
+            active = false;
+            clearTimeout(overall);
+            controller.abort();
+            librepm.setTokenProvider(null);
+            librepm.setCurrentUser(null);
+        };
+    }, [authLoaded, isSignedIn, userId, sessionId, orgId, getToken, setActive, organizationToActivate, retryAttempt]);
 
     const handleSignOut = useCallback(async () => {
         librepm.setTokenProvider(null);
@@ -124,14 +116,14 @@ export default function WebAuthGate({ isSatellite = false }) {
             return (
                 <Centered title="Riconoscimento dell’accesso…">
                     <SourceOffer />
-                    <RedirectToSignIn />
+                    <RedirectToSignIn {...clerkSignInReturnOptions(window.location)} />
                 </Centered>
             );
         }
 
         return (
             <div className="d-flex flex-column align-items-center justify-content-center min-vh-100 p-3">
-                <SignIn routing="hash" />
+                <SignIn routing="hash" fallbackRedirectUrl={clerkSignInReturnOptions(window.location).redirectUrl} />
                 <SourceOffer />
             </div>
         );
@@ -145,10 +137,12 @@ export default function WebAuthGate({ isSatellite = false }) {
             <Centered title={forbidden ? "Accesso non abilitato" : "Errore di connessione"}>
                 <p className="mb-3">
                     {forbidden
-                        ? "Il tuo account esiste ma non ha ancora un ruolo abilitato alla sezione bandi. "
-                          + "Chiedi al presidente di assegnartelo nell'organizzazione."
-                        : error?.message || "Il backend della sezione bandi non risponde."}
+                        ? "Il tuo account non è ancora abilitato. Contatta chi gestisce gli accessi."
+                        : "Non è stato possibile completare l’accesso. Riprova tra poco."}
                 </p>
+                <button type="button" className="btn btn-primary me-2" onClick={() => setRetryAttempt((attempt) => attempt + 1)}>
+                    Riprova
+                </button>
                 <button type="button" className="btn btn-outline-secondary" onClick={handleSignOut}>
                     Esci
                 </button>
@@ -164,8 +158,7 @@ export default function WebAuthGate({ isSatellite = false }) {
         return (
             <Centered title="Nessun ruolo assegnato">
                 <p className="mb-3">
-                    L'accesso è riuscito, ma il token non porta nessun ruolo valido per la sezione
-                    bandi. Va assegnato in Clerk, nell'organizzazione dell'associazione.
+                    Il tuo account non è ancora abilitato. Contatta chi gestisce gli accessi.
                 </p>
                 <button type="button" className="btn btn-outline-secondary" onClick={handleSignOut}>
                     Esci

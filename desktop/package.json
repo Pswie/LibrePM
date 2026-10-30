@@ -21,6 +21,8 @@
     "preview:web": "vite preview --config vite.web.config.mjs",
     "test:mobile": "node scripts/mobile-smoke.mjs",
     "test:api": "node --test scripts/api-regressions.test.mjs",
+    "test:suite": "node --test scripts/suite-projects.test.mjs",
+    "test:suite-ui": "node scripts/suite-ui-smoke.mjs",
     "test:grants": "node scripts/grants-smoke.mjs",
     "build:jre": "node scripts/build-jre.cjs",
     "prepare:backend": "node scripts/run-gradle-wrapper.cjs clean bootJar",

@@ -50,20 +50,26 @@ public class ClerkRoleConverter implements Converter<Jwt, AbstractAuthentication
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Set<String> roles = new LinkedHashSet<>();
 
-        for (String claim : properties.getRoleClaims()) {
-            roles.addAll(readRoles(jwt.getClaims().get(claim)));
-
-            Object metadata = jwt.getClaims().get(METADATA_CLAIM);
-            if (metadata instanceof Map<?, ?> map) {
-                roles.addAll(readRoles(map.get(claim)));
-            }
-        }
-
         // Nei session token Clerk v2 il ruolo dell'organizzazione attiva non
         // arriva più come org_role, ma nella forma compatta `o.rol`.
+        // Se presente è esclusivo: metadata precedenti non devono mantenere
+        // privilegi dopo una revoca, neppure con un ruolo nullo o sconosciuto.
         Object organization = jwt.getClaims().get(ORGANIZATION_CLAIM);
+        boolean organizationRolePresent = organization instanceof Map<?, ?> map
+                && map.containsKey(ORGANIZATION_ROLE_CLAIM);
         if (organization instanceof Map<?, ?> map) {
             roles.addAll(readRoles(map.get(ORGANIZATION_ROLE_CLAIM)));
+        }
+
+        if (!organizationRolePresent) {
+            for (String claim : properties.getRoleClaims()) {
+                roles.addAll(readRoles(jwt.getClaims().get(claim)));
+
+                Object metadata = jwt.getClaims().get(METADATA_CLAIM);
+                if (metadata instanceof Map<?, ?> map) {
+                    roles.addAll(readRoles(map.get(claim)));
+                }
+            }
         }
 
         List<GrantedAuthority> authorities = new ArrayList<>();

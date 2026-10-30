@@ -62,6 +62,25 @@ test('asset downloads attach the current JWT and preserve the filename', async (
     assert.equal(removed, 1);
 });
 
+test('SDK token failure fails closed before fetch instead of sending an anonymous profile request', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls += 1; throw new Error('Unexpected fetch'); };
+    librepm.setTokenProvider(async () => { throw new Error('SDK_UNAVAILABLE_FIXTURE'); });
+    await assert.rejects(librepm.me(), /SDK_UNAVAILABLE_FIXTURE/);
+    assert.equal(calls, 0);
+});
+
+test('profile request forwards its abort signal through to fetch', async () => {
+    const controller = new AbortController();
+    let observed;
+    globalThis.fetch = async (_url, config) => {
+        observed = config.signal;
+        return new Response(JSON.stringify({ id: 'backend-user', roles: ['ADMIN'] }));
+    };
+    await librepm.me({ signal: controller.signal });
+    assert.equal(observed, controller.signal);
+});
+
 test('a rejected download does not create an empty or misleading file', async () => {
     globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Access denied' }), { status: 403 });
     await assert.rejects(librepm.assetsDownload('asset-1'), /Access denied/);

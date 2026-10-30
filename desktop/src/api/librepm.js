@@ -85,12 +85,7 @@ function setTokenProvider(provider) {
  */
 async function currentToken() {
     if (!tokenProvider) return null;
-    try {
-        return await tokenProvider();
-    } catch (e) {
-        console.warn('[LibrePM API] Token di sessione non disponibile:', e);
-        return null;
-    }
+    return await tokenProvider();
 }
 
 /**
@@ -394,7 +389,14 @@ export const librepm = {
      * @returns {Promise<{id: string, username: string, displayName: string,
      *   email: string, workspaceProfileId: string, roles: string[]}>}
      */
-    me: () => apiRequest('/me'),
+    me: (options = {}) => apiRequest('/me', options),
+
+    suiteProjects: () => apiRequest('/integrations/v1/projects'),
+    suiteProject: (id) => apiRequest(`/integrations/v1/projects/${encodeURIComponent(id)}`),
+    suiteRegister: (id) => apiRequest('/integrations/v1/projects', { method: 'POST', body: { librepmProjectId: id } }),
+    suiteSync: (id) => apiRequest(`/integrations/v1/projects/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+    suiteSelection: () => apiRequest('/integrations/v1/selection'),
+    suiteSelect: (id) => apiRequest('/integrations/v1/selection', { method: 'PUT', body: { suiteProjectId: id } }),
 
     /**
      * Sets the current user ID.

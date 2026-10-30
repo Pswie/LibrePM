@@ -15,7 +15,7 @@ public class Programme {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Lob
+    // Plain text on all engines: PostgreSQL large-object OIDs are not text columns.
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

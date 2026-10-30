@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { librepm } from '@api/librepm.js';
 import { toast } from 'react-toastify';
 import { useModal } from '../hooks/useModal.js';
+import SuiteProjectsPanel from '../components/SuiteProjectsPanel.jsx';
 
 /**
  * IntegrationsPage - Manage Import/Export and external connections like ICS.
@@ -131,6 +132,7 @@ export default function IntegrationsPage({ shell }) {
     return (
         <div className="container-fluid p-4">
             <h4 className="mb-4">{t("Integrations & Data")}</h4>
+            <SuiteProjectsPanel shell={shell} />
 
             {/* ICS Calendar Feed */}
             <div className="card shadow-sm mb-4">

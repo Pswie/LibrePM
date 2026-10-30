@@ -26,11 +26,29 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=15
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: librepm_test
+          POSTGRES_USER: librepm_owner
+          POSTGRES_PASSWORD: librepm-owner-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U librepm_owner -d librepm_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
     env:
       # Database effimero della CI: nessun accesso al database in esercizio.
       MYSQL_TEST_URL: jdbc:mysql://127.0.0.1:3306/librepm?useSSL=false&allowPublicKeyRetrieval=true
       MYSQL_TEST_USER: root
       MYSQL_TEST_PASSWORD: librepm-test
+      POSTGRES_TEST_URL: jdbc:postgresql://127.0.0.1:5432/librepm_test?sslmode=disable
+      POSTGRES_TEST_USER: librepm_app
+      POSTGRES_TEST_PASSWORD: librepm-app-ci-only
+      POSTGRES_TEST_MIGRATION_USER: librepm_owner
+      POSTGRES_TEST_MIGRATION_PASSWORD: librepm-owner-ci-only
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -38,7 +56,11 @@ jobs:
           java-version: '21'
           distribution: temurin
       - run: chmod +x gradlew
-      - name: Test API, security and MySQL migrations; build backend
+      - name: Prepare isolated PostgreSQL runtime role
+        env:
+          PGPASSWORD: librepm-owner-ci-only
+        run: psql -h 127.0.0.1 -U librepm_owner -d librepm_test -v ON_ERROR_STOP=1 -v runtime_password=librepm-app-ci-only -f src/test/resources/postgresql_runtime_role.sql
+      - name: Test API, security and SQLite/MySQL/PostgreSQL migrations; build backend
         run: ./gradlew --no-daemon test bootJar
       - name: Upload test reports
         if: always()

@@ -5,6 +5,7 @@ import jakarta.persistence.Converter;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -73,6 +74,15 @@ public class InstantAttributeConverter implements AttributeConverter<Instant, St
             return Instant.parse(trimmed);
         } catch (DateTimeParseException e) {
             // Continua con altri formati
+        }
+
+        // PostgreSQL CURRENT_TIMESTAMP cast to a text column may include a
+        // numeric offset (including the short +00 form). Preserve its instant.
+        try {
+            String offsetTimestamp = trimmed.replace(' ', 'T').replaceFirst("([+-]\\d{2})$", "$1:00");
+            return OffsetDateTime.parse(offsetTimestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant();
+        } catch (DateTimeParseException e) {
+            // Continue with legacy SQLite/MySQL representations.
         }
 
         // 3. Prova formato SQLite standard (yyyy-MM-dd HH:mm:ss)

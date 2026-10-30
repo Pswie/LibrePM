@@ -8,6 +8,9 @@ spring:
 
   profiles:
     active: desktop
+    group:
+      cloud-postgres:
+        - cloud
 
   datasource:
     url: jdbc:sqlite:${librepm.data.path}/librepm.db?busy_timeout=5000
@@ -279,3 +282,39 @@ logging:
   # sparirebbe a ogni riavvio dell'istanza.
   file:
     name: ""
+
+---
+# Opt-in PostgreSQL/Supabase backend. The profile group also activates `cloud`,
+# preserving Clerk, restricted CORS and all server-side authorization rules.
+spring:
+  config:
+    activate:
+      on-profile: cloud-postgres
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:3}
+      minimum-idle: ${DB_POOL_MIN:0}
+      connection-timeout: 10000
+      connection-init-sql: SET search_path TO librepm
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: librepm
+  flyway:
+    locations: classpath:db/migration_postgresql
+    url: ${LIBREPM_MIGRATION_URL:${SPRING_DATASOURCE_URL}}
+    user: ${LIBREPM_MIGRATION_USERNAME:${SPRING_DATASOURCE_USERNAME}}
+    password: ${LIBREPM_MIGRATION_PASSWORD:${SPRING_DATASOURCE_PASSWORD}}
+    default-schema: librepm
+    schemas:
+      - librepm
+    create-schemas: true
+    baseline-on-migrate: false
+    clean-disabled: true

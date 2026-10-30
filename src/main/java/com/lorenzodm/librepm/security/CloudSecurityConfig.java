@@ -156,6 +156,11 @@ public class CloudSecurityConfig {
                 // chiama, per sapere quale userId usare nei percorsi seguenti.
                 .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
 
+                // Suite APIs resolve the verified actor and also check project membership.
+                // Peer requests use their own higher-priority, fixed-organization chain.
+                .requestMatchers(HttpMethod.GET, "/api/integrations/v1/**").hasAnyRole(OPERATIONAL_ROLES)
+                .requestMatchers("/api/integrations/v1/**").hasAnyRole(GOVERNANCE_ROLES)
+
                 // L'elenco di tutti i profili è la rubrica dell'associazione.
                 // Va prima della regola per utente, che altrimenti lo intercetta.
                 .requestMatchers(HttpMethod.GET, "/api/users").hasRole("PRESIDENTE")
