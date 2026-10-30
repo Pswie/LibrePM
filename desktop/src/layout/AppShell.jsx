@@ -27,6 +27,9 @@ import CommandPalette from "../components/CommandPalette.jsx";
 import NotificationBell from "../components/NotificationBell.jsx";
 import PortalModal from "../components/PortalModal.jsx";
 import ResponsiveTables from "../components/ResponsiveTables.jsx";
+import ProjectContextBar from '../components/ProjectContextBar.jsx';
+import PageErrorBoundary from '../components/PageErrorBoundary.jsx';
+import { BRAND_LOGO_URL, ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL, UPSTREAM_URL } from '../branding';
 
 // Pages
 import MenuPage from "../pages/MenuPage.jsx";
@@ -55,20 +58,16 @@ import StakeholderPage from "../pages/StakeholderPage.jsx";
 import ChangeControlPage from "../pages/ChangeControlPage.jsx";
 import PortfolioPage from "../pages/PortfolioPage.jsx";
 
-const DONATION_URL = "https://www.paypal.com/paypalme/lorenzodemarco92";
-
 function AboutLibrePMModal({ onClose, t }) {
     return (
         <PortalModal className="modal-dialog-centered modal-md" onClick={onClose}>
             <div className="modal-header border-0 pb-0">
                 <div>
                     <h5 className="modal-title d-flex align-items-center gap-2 mb-1">
-                        <span className="d-inline-flex align-items-center justify-content-center rounded-2 bg-primary-subtle text-primary" style={{ width: 36, height: 36 }}>
-                            <i className="bi bi-info-circle"></i>
-                        </span>
-                        LibrePM
+                        <img src={BRAND_LOGO_URL} alt="" width={56} height={56} style={{ objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 4 }} />
+                        {SECTION_NAME}
                     </h5>
-                    <div className="text-muted small">{t("Planner & Task Manager")}</div>
+                    <div className="text-muted small">{ORGANISATION_NAME}</div>
                 </div>
                 <button type="button" className="btn-close" aria-label={t("Close")} onClick={onClose}></button>
             </div>
@@ -79,10 +78,8 @@ function AboutLibrePMModal({ onClose, t }) {
                         <span className="fw-semibold">LibrePM v{__APP_VERSION__}</span>
                     </div>
                     <div className="d-flex justify-content-between gap-3 mb-2">
-                        <span className="text-muted">{t("Website")}</span>
-                        <a href="https://www.lorenzodm.it" target="_blank" rel="noopener noreferrer">
-                            https://www.lorenzodm.it
-                        </a>
+                        <span className="text-muted">{t("Software")}</span>
+                        <a href={UPSTREAM_URL} target="_blank" rel="noopener noreferrer">LibrePM</a>
                     </div>
                     <div className="d-flex justify-content-between gap-3 mb-2">
                         <span className="text-muted">{t("Copyright")}</span>
@@ -94,13 +91,13 @@ function AboutLibrePMModal({ onClose, t }) {
                     </div>
                 </div>
                 <a
-                    className="btn btn-primary w-100"
-                    href={DONATION_URL}
+                    className="btn btn-outline-primary w-100"
+                    href={SOURCE_CODE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                 >
-                    <i className="bi bi-heart me-2"></i>
-                    {t("Donations")}
+                    <i className="bi bi-code-slash me-2"></i>
+                    {t("Source code")}
                 </a>
             </div>
         </PortalModal>
@@ -111,7 +108,6 @@ function AboutLibrePMModal({ onClose, t }) {
 import { WorkflowProvider } from "../context/WorkflowContext.jsx";
 
 // Assets
-import LogoIcon from "../assets/icon.png";
 
 /**
  * AppShell - Main Layout Component for LibrePM.
@@ -254,7 +250,7 @@ export default function AppShell({ initialUser, onLogout }) {
             },
             {
                 id: "about",
-                label: t("Info LibrePM"),
+                label: t("About the application"),
                 icon: "bi-info-circle",
                 onClick: () => {
                     modal.showModal(AboutLibrePMModal, {
@@ -706,10 +702,11 @@ export default function AppShell({ initialUser, onLogout }) {
                         />
 
                         {/* Content Section */}
+                        <ProjectContextBar shell={shell} />
                         <section className="jl-content" ref={contentRef}>
                             {/* Page Content */}
                             <div className="jl-page" id="main-content">
-                                <PageComponent shell={shell} />
+                                <PageErrorBoundary key={activeId}><PageComponent shell={shell} /></PageErrorBoundary>
                             </div>
 
                             <ResponsiveTables rootRef={contentRef} />
@@ -732,9 +729,9 @@ export default function AppShell({ initialUser, onLogout }) {
                                     <div className="d-flex flex-column gap-2">
                                         <div className="d-flex align-items-start justify-content-between gap-2">
                                             <div>
-                                                <div className="fw-bold">LibrePM v{__APP_VERSION__}</div>
+                                                <div className="fw-bold">{SECTION_NAME}</div>
                                                 <div className="jl-muted small">
-                                                    {t("Info panel. Pages can customize this space.")}
+                                                    {t('Project information and useful links.')}
                                                 </div>
                                             </div>
                                             <span className="badge bg-primary-subtle text-primary border border-primary-subtle">

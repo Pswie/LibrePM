@@ -23,7 +23,10 @@ export const SOURCE_CODE_URL = "https://github.com/Pswie/LibrePM/tree/cloud/adf-
 export const UPSTREAM_URL = "https://github.com/LorenzoElSalserito/LibrePM";
 
 /** Nome mostrato all'utente nella sezione bandi. */
-export const SECTION_NAME = "Bandi e progetti";
+export const SECTION_NAME = "Progetti";
 
 /** Ente che eroga il servizio. */
-export const ORGANISATION_NAME = "Angeli del Futuro";
+export const ORGANISATION_NAME = "Angeli del Futuro APS";
+
+/** Logo ufficiale, conservato senza modifiche dal sito dell'associazione. */
+export const BRAND_LOGO_URL = `${import.meta.env.BASE_URL || '/'}brand/logo-ufficiale.png`;

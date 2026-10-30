@@ -11,6 +11,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
     const [activeTab, setActiveTab] = useState("info");
     const [editValues, setEditValues] = useState({ ...project });
     const [showTeamModal, setShowTeamModal] = useState(false);
+    const [saving, setSaving] = useState(false);
     const modal = useModal();
 
     useEffect(() => {
@@ -18,12 +19,14 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
     }, [project]);
 
     const handleSave = async () => {
+        if (!editValues.name?.trim() || saving) return;
+        setSaving(true);
         try {
             await onUpdate(project.id, editValues);
             toast.success(t("Project updated"));
         } catch (e) {
             toast.error(t("Update error") + ": " + e.message);
-        }
+        } finally { setSaving(false); }
     };
 
     const handleDelete = async () => {
@@ -48,7 +51,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
                 <div style={{ height: "80vh", display: "flex", flexDirection: "column" }}>
                     <div className="modal-header">
                         <h5 className="modal-title">{t("Project Detail")}: {project.name}</h5>
-                        <button type="button" className="btn-close" onClick={onClose}></button>
+                        <button type="button" className="btn-close" aria-label={t('Close')} onClick={onClose}></button>
                     </div>
                     <div className="modal-body p-0 d-flex flex-column flex-grow-1" style={{ overflow: "hidden" }}>
                         <ul className="nav nav-tabs px-3 pt-3 bg-light">
@@ -70,17 +73,21 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
                             {activeTab === "info" && (
                                 <div className="d-flex flex-column gap-3">
                                     <div>
-                                        <label className="form-label fw-bold">{t("Project Name")}</label>
+                                        <label htmlFor="project-detail-name" className="form-label fw-bold">{t("Project Name")}</label>
                                         <input
+                                            id="project-detail-name"
                                             type="text"
+                                            maxLength={200}
                                             className="form-control"
                                             value={editValues.name}
                                             onChange={(e) => setEditValues({ ...editValues, name: e.target.value })}
                                         />
                                     </div>
                                     <div>
-                                        <label className="form-label fw-bold">{t("Description")}</label>
+                                        <label htmlFor="project-detail-description" className="form-label fw-bold">{t("Description")}</label>
                                         <textarea
+                                            id="project-detail-description"
+                                            maxLength={2000}
                                             className="form-control"
                                             rows="4"
                                             value={editValues.description || ""}
@@ -88,7 +95,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
                                         ></textarea>
                                     </div>
                                     <div className="d-flex gap-2 mt-3">
-                                        <button className="btn btn-primary" onClick={handleSave}>{t("Save Changes")}</button>
+                                        <button className="btn btn-primary" disabled={saving || !editValues.name?.trim()} onClick={handleSave}>{saving ? t('Saving...') : t("Save Changes")}</button>
                                     </div>
                                 </div>
                             )}
@@ -171,7 +178,7 @@ export default function ProjectDetailModal({ project, onClose, onUpdate, onDelet
                                     </div>
 
                                     <div className="d-flex gap-2 mt-3">
-                                        <button className="btn btn-primary" onClick={handleSave}>{t("Save Changes")}</button>
+                                        <button className="btn btn-primary" disabled={saving || !editValues.name?.trim()} onClick={handleSave}>{saving ? t('Saving...') : t("Save Changes")}</button>
                                     </div>
                                 </div>
                             )}

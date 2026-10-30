@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { librepm } from '../api/librepm.js';
 import { safeSuiteLink } from '../utils/suiteProjects.js';
 
-const labels = { associago: 'AssociaGo · soci e volontari', bandi: 'Bandi · candidature', librepm: 'LibrePM · piano di progetto' };
+const labels = { associago: 'Soci e volontari', bandi: 'Bandi · candidature', librepm: 'Progetti · piano di lavoro' };
 const statusLabels = { disabled: 'Non configurato', unlinked: 'Da collegare', pending: 'In corso', synced: 'Allineato', error: 'Da riprovare' };
 
 export default function SuiteProjectsPanel({ shell }) {
@@ -50,7 +50,7 @@ export default function SuiteProjectsPanel({ shell }) {
     return <section className="card shadow-sm mb-4" aria-labelledby="suite-title">
         <div className="card-header"><h5 id="suite-title" className="mb-0">Progetti collegati</h5></div>
         <div className="card-body">
-            <p className="text-muted">Un progetto comune, tre applicazioni: piano in LibrePM, persone e rendiconto in AssociaGo, candidatura in Bandi.</p>
+            <p className="text-muted">Lo stesso progetto nelle tre applicazioni: piano di lavoro in Progetti, persone e rendiconto in Gestione associazione, candidatura in Bandi.</p>
             {error && <div className="alert alert-warning" role="alert">{error}<button disabled={busy} onClick={load} className="btn btn-sm btn-outline-secondary ms-2">Riprova</button></div>}
             {notice && <p className="alert alert-info" role="status">{notice}</p>}
             {catalog.length > 0 && <div className="mb-3">
@@ -66,7 +66,7 @@ export default function SuiteProjectsPanel({ shell }) {
                     : <button disabled={busy || !id || !!error} className="btn btn-primary" onClick={register}>Condividi questo progetto</button>}
                 {current && ['associago', 'bandi'].map(system => {
                     const href = safeSuiteLink(current.links?.[system]);
-                    return href && <a key={system} className="btn btn-outline-primary" href={href} target="_blank" rel="noopener noreferrer">Apri in {system === 'bandi' ? 'Bandi' : 'AssociaGo'}</a>;
+                    return href && <a key={system} className="btn btn-outline-primary" href={href} target="_blank" rel="noopener noreferrer">Apri in {system === 'bandi' ? 'Bandi' : 'Gestione associazione'}</a>;
                 })}
             </div>
             {current && <>

@@ -7,7 +7,7 @@ import {
 } from "@clerk/clerk-react";
 import librepm from "./api/librepm";
 import App from "./App.jsx";
-import { ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from "./branding";
+import { BRAND_LOGO_URL, ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from "./branding";
 import { clerkSignInReturnOptions } from "./clerk-sso.js";
 import { boundedTokenProvider, resolveWebAccess, WebAccessError } from "./web-access.js";
 
@@ -99,7 +99,7 @@ export default function WebAuthGate({ isSatellite = false }) {
     }, [signOut]);
 
     if (!authLoaded) {
-        return <Centered title="Avvio della sezione bandi…" />;
+        return <Centered title="Avvio di Progetti…" />;
     }
 
     if (!isSignedIn) {
@@ -190,12 +190,11 @@ function Centered({ title, children }) {
  */
 function SourceOffer() {
     return (
-        <p className="small text-muted mt-4 mb-0 text-center">
-            {SECTION_NAME} di {ORGANISATION_NAME} — LibrePM, GNU AGPL v3.{" "}
-            <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer noopener">
-                Codice sorgente di questa versione
-            </a>
-            .
-        </p>
+        <div className="mt-4 text-center">
+            <img src={BRAND_LOGO_URL} alt="" width={80} height={80} style={{ objectFit: 'contain', background: '#fff', borderRadius: 12, padding: 6 }} />
+            <p className="fw-semibold mt-2 mb-0">{SECTION_NAME}</p>
+            <p className="small text-muted mb-2">{ORGANISATION_NAME}</p>
+            <p className="small text-muted mb-0">LibrePM, GNU AGPL v3. <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer noopener">Codice sorgente di questa versione</a>.</p>
+        </div>
     );
 }

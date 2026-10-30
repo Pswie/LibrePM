@@ -77,8 +77,11 @@ export default function TopHeader({ title, actions, onMenuToggle, navOpen = fals
                 .jl-header-actions {
                     display: flex;
                     align-items: center;
+                    flex-wrap: wrap;
+                    justify-content: flex-end;
                     gap: 0.75rem;
-                    flex-shrink: 0;
+                    min-width: 0;
+                    max-width: 75%;
                 }
 
                 .jl-header-burger {
@@ -115,6 +118,10 @@ export default function TopHeader({ title, actions, onMenuToggle, navOpen = fals
 
                 @media (max-width: 768px) {
                     .jl-header {
+                        height: auto;
+                        flex-shrink: 0;
+                        flex-wrap: wrap;
+                        row-gap: 0.35rem;
                         padding: 0.5rem 1rem;
                         /* L'intaglio della fotocamera sui telefoni recenti mangia
                            la fascia superiore: senza questo il titolo ci finisce
@@ -130,6 +137,18 @@ export default function TopHeader({ title, actions, onMenuToggle, navOpen = fals
 
                     .jl-header-actions {
                         gap: 0.35rem;
+                        flex-basis: 100%;
+                        max-width: none;
+                    }
+
+                    .jl-header-actions > .d-flex {
+                        flex-wrap: wrap;
+                        justify-content: flex-end;
+                    }
+
+                    .jl-header-actions .btn,
+                    .jl-header-actions .form-check-label {
+                        white-space: nowrap;
                     }
                 }
             `}</style>

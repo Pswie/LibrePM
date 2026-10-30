@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { librepm } from '@api/librepm.js';
 import GanttChart from '../components/gantt/GanttChart.jsx';
 import TaskEditorModal from '../components/TaskEditorModal.jsx';
+import ProjectRequired from '../components/ProjectRequired.jsx';
 
 /**
  * GanttPage - Advanced planning view using a Gantt chart (PRD-10).
@@ -198,7 +199,7 @@ export default function GanttPage({ shell }) {
     }
 
     if (!shell?.currentProject) {
-        return <div className="text-center py-5 text-muted">{t("Select a project to view the Gantt chart")}</div>;
+        return <ProjectRequired shell={shell} />;
     }
 
     return (

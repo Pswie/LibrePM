@@ -3,6 +3,7 @@ import { librepm } from '@api/librepm.js';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import { useModal } from '../hooks/useModal.js';
+import ProjectRequired from '../components/ProjectRequired.jsx';
 
 const CALL_STATUSES = ['IDENTIFIED', 'EVALUATING', 'PREPARING', 'SUBMITTED', 'AWARDED', 'REJECTED', 'CLOSED'];
 const OBL_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'];
@@ -111,7 +112,7 @@ function ProjectGrants({ shell }) {
         });
     };
 
-    if (!projectId) return <div className="container-fluid p-4 text-center text-muted"><p>{t('Select a project')}</p></div>;
+    if (!projectId) return <ProjectRequired shell={shell} />;
     if (loading) return <div className="p-4" role="status">{t('Loading...')}</div>;
     if (loadError) return <div className="p-4"><div className="alert alert-danger" role="alert">{loadError}</div><button className="btn btn-outline-primary" onClick={() => setReload(v => v + 1)}>{t('Retry')}</button></div>;
 

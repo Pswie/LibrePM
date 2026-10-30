@@ -25,21 +25,22 @@
 
 :root {
   /* ---- Palette del sito ---- */
-  --adf-paper: #fdfbf7;
-  --adf-paper-deep: #f4f2ed;
-  --adf-surface: #fffefb;
-  --adf-ink: #1d211c;
-  --adf-ink-soft: #4c544c;
-  --adf-ink-faint: #7d857c;
-  --adf-forest: #17231c;
-  --adf-forest-2: #21382a;
-  --adf-forest-3: #2c4835;
-  --adf-sage: #9db4a4;
-  --adf-sage-soft: #e7ede7;
-  --adf-clay: #c05a2e;
-  --adf-clay-deep: #a34a24;
-  --adf-gold: #c99a3f;
-  --adf-gold-soft: #d4b36d;
+  --adf-paper: #f7fafc;
+  --adf-paper-deep: #f1f5f8;
+  --adf-surface: #ffffff;
+  --adf-ink: #162b3a;
+  --adf-ink-soft: #4a5e6c;
+  --adf-ink-faint: #637784;
+  /* Existing token names retained so every module adopts the official blue/coral identity. */
+  --adf-forest: #102f46;
+  --adf-forest-2: #145f91;
+  --adf-forest-3: #1d75a6;
+  --adf-sage: #8ec3df;
+  --adf-sage-soft: #e8f3fa;
+  --adf-clay: #ef7c75;
+  --adf-clay-deep: #a53f43;
+  --adf-gold: #ba7622;
+  --adf-gold-soft: #f2b1a5;
   --adf-hairline: rgba(29, 33, 28, 0.1);
   --adf-hairline-strong: rgba(29, 33, 28, 0.16);
 
@@ -64,10 +65,10 @@
      Sono gli stessi toni della barra di AdminLayout.astro nel sito. */
   --adf-rail-bg: var(--adf-forest);
   --adf-rail-border: rgba(255, 255, 255, 0.11);
-  --adf-rail-text: #aebbb2;
+  --adf-rail-text: #b8ccd9;
   --adf-rail-text-strong: #f7f8f4;
   --adf-rail-hover: rgba(255, 255, 255, 0.06);
-  --adf-rail-active-bg: #243129;
+  --adf-rail-active-bg: #1c4967;
   --adf-rail-active-bar: inset 3px 0 0 var(--adf-gold-soft);
 
   /* Stesso meccanismo per gli altri componenti che tengono gli stili dentro il
@@ -116,25 +117,25 @@
    precedente. */
 [data-theme="dark"],
 .jl-root.dark-theme {
-  --jl-bg-primary: #14201a;
-  --jl-bg-secondary: #1b2a22;
-  --jl-bg-card: #1b2a22;
-  --jl-text-primary: #eef2ed;
-  --jl-text-secondary: #b5c4b9;
-  --jl-text-muted: #8fa095;
+  --jl-bg-primary: #102536;
+  --jl-bg-secondary: #163448;
+  --jl-bg-card: #163448;
+  --jl-text-primary: #edf5fa;
+  --jl-text-secondary: #b9cad8;
+  --jl-text-muted: #8fa9ba;
   --jl-border-color: rgba(255, 255, 255, 0.11);
-  --jl-input-bg: #16241d;
+  --jl-input-bg: #132b3f;
   --jl-input-border: rgba(255, 255, 255, 0.16);
   --jl-table-stripe: rgba(255, 255, 255, 0.03);
   --jl-primary: var(--adf-sage);
   --jl-primary-dark: #b7cbbd;
 
-  --adf-surface: #1b2a22;
-  --adf-paper-deep: #14201a;
-  --adf-paper: #16241d;
-  --adf-ink: #eef2ed;
-  --adf-ink-soft: #b5c4b9;
-  --adf-ink-faint: #8fa095;
+  --adf-surface: #163448;
+  --adf-paper-deep: #102536;
+  --adf-paper: #132b3f;
+  --adf-ink: #edf5fa;
+  --adf-ink-soft: #b9cad8;
+  --adf-ink-faint: #8fa9ba;
   --adf-hairline: rgba(255, 255, 255, 0.11);
   --adf-hairline-strong: rgba(255, 255, 255, 0.18);
   --adf-gold: var(--adf-gold-soft);
@@ -158,7 +159,7 @@
   --bs-border-radius-xl: var(--adf-r-shell);
 
   --bs-primary: var(--adf-forest-2);
-  --bs-primary-rgb: 33, 56, 42;
+  --bs-primary-rgb: 20, 95, 145;
   --bs-secondary: var(--adf-ink-soft);
   --bs-success: #2f6b45;
   --bs-info: #3f6870;
@@ -389,9 +390,18 @@ h1, h2, h3, h4, h5, h6,
    Qui si allarga il passo senza toccare la struttura delle schermate: nessun
    riposizionamento, solo aria e scala. */
 
-.jl-content,
+.jl-content {
+  padding: 0;
+}
+
 .jl-page {
   padding: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+@media (max-width: 767.98px) {
+  .jl-page {
+    padding: 1rem;
+  }
 }
 
 .jl-header {

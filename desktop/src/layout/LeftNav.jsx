@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import Logo from "../assets/icon.png";
+import { BRAND_LOGO_URL, ORGANISATION_NAME, SECTION_NAME, SOURCE_CODE_URL } from '../branding';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -37,6 +37,22 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
     const visibleItems = useMemo(() => {
         return items.filter(item => item.id !== "settings");
     }, [items]);
+    const groups = useMemo(() => {
+        const definitions = [
+            { label: t('Overview'), ids: ['dashboard', 'menu', 'portfolio'] },
+            { label: t('Work'), ids: ['inbox', 'planner', 'kanban', 'calendar', 'notes', 'time-tracking'] },
+            { label: t('Planning'), ids: ['charter', 'gantt', 'resources', 'analytics', 'change-control'] },
+            { label: t('People'), ids: ['team', 'connections', 'stakeholders'] },
+            { label: t('Funding'), ids: ['finance', 'grants'] },
+            { label: t('Tools'), ids: ['templates', 'guides', 'integrations', 'sync-conflicts'] },
+        ];
+        const knownIds = new Set(definitions.flatMap(group => group.ids));
+        return [...definitions.map(group => ({
+            label: group.label,
+            items: group.ids.map(id => visibleItems.find(item => item.id === id)).filter(Boolean)
+        })), { label: t('Other'), items: visibleItems.filter(item => !knownIds.has(item.id)) }]
+            .filter(group => group.items.length);
+    }, [visibleItems, t]);
 
     // Esc chiude il cassetto: è la scorciatoia che si prova per prima quando un
     // pannello copre la pagina. AppShell usa Esc anche per il pannello destro,
@@ -131,18 +147,20 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
             <div className="jl-sidebar-header">
                 <div className="jl-logo">
                     <img
-                        src={Logo}
-                        alt="LibrePM Logo"
+                        src={BRAND_LOGO_URL}
+                        alt={ORGANISATION_NAME}
                         className="jl-logo-img"
                         style={{
-                            width: collapsed ? "32px" : "40px",
-                            height: collapsed ? "32px" : "40px",
+                            width: collapsed ? "44px" : "56px",
+                            height: collapsed ? "44px" : "56px",
                             backgroundColor: "#fff",
-                            borderRadius: "8px", // Smussamento angoli
-                            transition: "all 0.2s ease"
+                            borderRadius: "10px",
+                            padding: "4px",
+                            objectFit: "contain",
+                            flexShrink: 0
                         }}
                     />
-                    {!collapsed && <span className="jl-logo-text">LibrePM</span>}
+                    {!collapsed && <span className="jl-logo-text"><strong>{ORGANISATION_NAME}</strong><small>{SECTION_NAME}</small></span>}
                 </div>
 
                 {/* Chiusura esplicita: sul telefono il gesto di trascinamento non
@@ -160,7 +178,10 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
             {/* Navigation Items (scrollable) */}
             <div className="jl-nav-scroll">
                 <ul className="jl-nav-list">
-                    {visibleItems.map((item) => (
+                    {groups.map((group) => <li className="jl-nav-group" key={group.label}>
+                        {!collapsed && <p className="jl-nav-group-title">{group.label}</p>}
+                        <ul className="jl-nav-list-group">
+                        {group.items.map((item) => (
                         <li key={item.id} className="jl-nav-item">
                             <button
                                 className={`jl-nav-link ${activeId === item.id ? "active" : ""}`}
@@ -172,7 +193,9 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                                 {!collapsed && <span className="jl-nav-label">{item.label}</span>}
                             </button>
                         </li>
-                    ))}
+                        ))}
+                        </ul>
+                    </li>)}
                 </ul>
             </div>
 
@@ -188,7 +211,7 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
 
                 {!collapsed && (
                     <div className="jl-sidebar-branding">
-                        <small className="text-muted">LibrePM • UI Shell</small>
+                        <a href={SOURCE_CODE_URL} target="_blank" rel="noopener noreferrer">LibrePM · AGPLv3</a>
                     </div>
                 )}
             </div>
@@ -198,8 +221,8 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                 .jl-sidebar {
                     display: flex;
                     flex-direction: column;
-                    width: 220px;
-                    min-width: 220px;
+                    width: 248px;
+                    min-width: 248px;
                     /* Il valore dentro var() è il ripiego, cioè il colore
                        storico: sul desktop --adf-rail-bg non è definita, vince
                        quello, e l'aspetto dell'applicazione Electron non cambia.
@@ -211,8 +234,8 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                 }
                 
                 .jl-sidebar.collapsed {
-                    width: 60px;
-                    min-width: 60px;
+                    width: 68px;
+                    min-width: 68px;
                 }
                 
                 .jl-sidebar-header {
@@ -227,10 +250,19 @@ export default function LeftNav({ items, activeId, onSelect, open = false, onClo
                 }
                 
                 .jl-logo-text {
-                    font-weight: 600;
-                    font-size: 1.1rem;
-                    letter-spacing: 0.5px;
+                    min-width: 0;
+                    line-height: 1.35;
+                    font-size: 0.88rem;
+                    letter-spacing: -0.015em;
                 }
+                .jl-logo-text strong { display: block; font-weight: 700; }
+                .jl-logo-text small { display: block; margin-top: 0.25rem; color: rgba(255,255,255,0.7); }
+                .jl-nav-list-group { list-style: none; padding: 0; margin: 0; }
+                .jl-nav-group + .jl-nav-group { margin-top: 0.75rem; }
+                .jl-nav-group-title { margin: 0 0 0.25rem; padding: 0.5rem 1rem 0.25rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+                .jl-sidebar.collapsed .jl-nav-group + .jl-nav-group { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid rgba(255,255,255,0.12); }
+                .jl-sidebar-branding a { color: rgba(255,255,255,0.65); text-decoration: none; }
+                .jl-sidebar-branding a:hover { color: #fff; text-decoration: underline; }
                 
                 .jl-nav-scroll {
                     flex: 1 1 0;

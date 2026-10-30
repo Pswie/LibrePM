@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { librepm } from '@api/librepm.js';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
+import ProjectRequired from '../components/ProjectRequired.jsx';
 
 /**
  * FinancePage - Project Finance management (Phase 18 / PRD-18).
@@ -137,12 +138,7 @@ function ProjectFinance({ shell }) {
     };
 
     if (!projectId) {
-        return (
-            <div className="text-center py-5 text-muted">
-                <i className="bi bi-folder2-open fs-1 d-block mb-3"></i>
-                <p>{t("Select a project")}</p>
-            </div>
-        );
+        return <ProjectRequired shell={shell} />;
     }
 
     const CATEGORIES = ['PERSONNEL', 'SUPPLIERS', 'SOFTWARE', 'TRAVEL', 'EVENTS', 'EQUIPMENT', 'OVERHEAD', 'MISC'];

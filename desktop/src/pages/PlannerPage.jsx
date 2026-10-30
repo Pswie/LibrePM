@@ -5,6 +5,7 @@ import TaskEditorModal from "../components/TaskEditorModal.jsx";
 import { useTranslation } from 'react-i18next';
 import { useWorkflow } from "../context/WorkflowContext.jsx";
 import { useModal } from "../hooks/useModal";
+import ProjectRequired from '../components/ProjectRequired.jsx';
 
 /**
  * PlannerPage - Vista lista per gestione task
@@ -230,7 +231,7 @@ export default function PlannerPage({ shell }) {
     };
 
     if (loading) return <div className="text-center py-5"><div className="spinner-border text-primary"></div></div>;
-    if (!shell?.currentProject) return <div className="text-center py-5 text-muted">{t("No project selected")}</div>;
+    if (!shell?.currentProject) return <ProjectRequired shell={shell} />;
 
     return (
         <div className="planner-page h-100 p-3">

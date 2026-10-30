@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useWorkflow } from "../context/WorkflowContext.jsx";
 import TaskEditorModal from "../components/TaskEditorModal.jsx";
 import { useModal } from "../hooks/useModal.js";
+import ProjectRequired from '../components/ProjectRequired.jsx';
 
 /**
  * KanbanPage - Vista Kanban per gestione task
@@ -480,7 +481,7 @@ export default function KanbanPage({ shell }) {
     };
 
     if (loading) return <div className="d-flex justify-content-center align-items-center py-5"><div className="spinner-border text-primary"></div></div>;
-    if (!shell?.currentProject) return <div className="text-center py-5 text-muted">{t("Select a project")}</div>;
+    if (!shell?.currentProject) return <ProjectRequired shell={shell} />;
 
     return (
         <div className="kanban-page h-100">
