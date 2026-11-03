@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { librepm } from "@api/librepm.js";
+import { canUseModule, canUsePage, needsProjectContext } from '../suite-access.js';
 
 /**
  * Tema iniziale dell'applicazione.
@@ -144,6 +145,13 @@ export default function AppShell({ initialUser, onLogout }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [workspaceModules, setWorkspaceModules] = useState({});
+    useEffect(() => {
+        setCurrentUser(initialUser);
+        setCurrentProject(null);
+        setProjects([]);
+        setLoading(true);
+        librepm.setCurrentProject(null);
+    }, [initialUser]);
 
     // ========================================
     // State - Pages and Navigation
@@ -186,11 +194,17 @@ export default function AppShell({ initialUser, onLogout }) {
     const filteredPages = useMemo(() => {
         if (loading) return []; // Return empty array while loading
         const hasModuleConfig = Object.keys(workspaceModules).length > 0;
-        if (!hasModuleConfig) return PAGES;
-        return PAGES.filter(p => !p.module || workspaceModules[p.module] !== false);
-    }, [PAGES, workspaceModules, loading]);
+        return PAGES.filter(p => canUsePage(currentUser, p.id) && (!hasModuleConfig || !p.module || workspaceModules[p.module] !== false));
+    }, [PAGES, workspaceModules, loading, currentUser]);
 
     const activePage = useMemo(() => filteredPages.find((p) => p.id === activeId) ?? filteredPages[0], [filteredPages, activeId]);
+    useEffect(() => {
+        if (!loading && filteredPages.length && !filteredPages.some(page => page.id === activeId)) {
+            setActiveId(filteredPages[0].id);
+            setNavContext(null);
+            setNavAction(null);
+        }
+    }, [loading, filteredPages, activeId]);
 
     // ========================================
     // State - UI Components
@@ -330,9 +344,10 @@ export default function AppShell({ initialUser, onLogout }) {
                     }
                 },
             },
-        ]);
+        ].filter(item => item.id !== 'settings' || canUsePage(currentUser, 'settings'))
+          .filter(item => !currentUser?.access || !['openData', 'export', 'switchProfile'].includes(item.id)));
 
-    }, [t, onLogout]);
+    }, [t, onLogout, currentUser]);
 
     // ========================================
     // Effect - Lock session shortcut (Ctrl+L)
@@ -385,7 +400,7 @@ export default function AppShell({ initialUser, onLogout }) {
             }
         }
 
-        if (currentUser) {
+        if (currentUser && canUseModule(currentUser, 'settings')) {
             loadTheme();
         }
     }, [currentUser]);
@@ -410,29 +425,34 @@ export default function AppShell({ initialUser, onLogout }) {
     // ========================================
 
     useEffect(() => {
+        let current = true;
         async function loadData() {
             try {
                 setLoading(true);
                 setError(null);
 
-                const projectsList = await librepm.projectsList();
+                const projectsList = canUseModule(currentUser, 'projects') ? await librepm.projectsList() : needsProjectContext(currentUser) ? await librepm.projectContext() : [];
+                if (!current) return;
                 setProjects(projectsList);
 
-                const selectedProject = await initialSuiteProject({
+                const selectedProject = canUseModule(currentUser, 'integrations') && canUseModule(currentUser, 'projects') ? await initialSuiteProject({
                     search: window.location.search,
                     projects: projectsList,
                     loadContext: librepm.suiteProject,
                     loadSelection: librepm.suiteSelection,
                     loadProject: librepm.projectsGet,
-                });
+                }) : projectsList[0] ?? null;
+                if (!current) return;
                 setCurrentProject(selectedProject);
                 librepm.setCurrentProject(selectedProject?.id);
-                if (new URLSearchParams(window.location.search).has('suiteProject')) setActiveId('integrations');
+                if (canUsePage(currentUser, 'integrations') && new URLSearchParams(window.location.search).has('suiteProject')) setActiveId('integrations');
 
                 // Load workspace profile modules
                 try {
+                    if (currentUser.access && !currentUser.access.owner) { setWorkspaceModules({}); setLoading(false); return; }
                     const profileId = currentUser.workspaceProfileId || 'wp-personal';
                     const profile = await librepm.workspaceProfileGet(profileId);
+                    if (!current) return;
                     if (profile?.modulesJson) {
                         const modules = typeof profile.modulesJson === 'string'
                             ? JSON.parse(profile.modulesJson)
@@ -446,6 +466,7 @@ export default function AppShell({ initialUser, onLogout }) {
 
                 setLoading(false);
             } catch (e) {
+                if (!current) return;
                 console.error('[AppShell] Errore caricamento dati:', e);
                 setError(e.message);
                 setLoading(false);
@@ -455,6 +476,7 @@ export default function AppShell({ initialUser, onLogout }) {
         if (currentUser) {
             loadData();
         }
+        return () => { current = false; };
     }, [currentUser]);
 
     // ========================================
@@ -476,10 +498,12 @@ export default function AppShell({ initialUser, onLogout }) {
     setProfileItemsRef.current = setProfileItems;
 
     const navigateFn = useCallback((pageId, context = null, action = null) => {
+        if (!canUsePage(currentUser, pageId) || !filteredPages.some(page => page.id === pageId)) return;
+        if (action && !canUsePage(currentUser, pageId, 'write')) return;
         setActiveId(pageId);
         setNavContext(context);
         setNavAction(action);
-    }, []);
+    }, [currentUser, filteredPages]);
 
     const clearNavActionFn = useCallback(() => setNavAction(null), []);
 
@@ -489,21 +513,24 @@ export default function AppShell({ initialUser, onLogout }) {
     }, []);
 
     const refreshProjectsFn = useCallback(async () => {
+        if (!canUseModule(currentUser, 'projects')) return needsProjectContext(currentUser) ? librepm.projectContext() : [];
         const projectsList = await librepm.projectsList();
         setProjects(projectsList);
         return projectsList;
-    }, []);
+    }, [currentUser]);
 
     const createProjectFn = useCallback(async (name, description) => {
+        if (!canUseModule(currentUser, 'projects', 'write')) throw new Error('Non hai il permesso di creare progetti.');
         const newProject = await librepm.projectsCreate(name, description);
         const projectsList = await librepm.projectsList();
         setProjects(projectsList);
         setCurrentProject(newProject);
         librepm.setCurrentProject(newProject.id);
         return newProject;
-    }, []);
+    }, [currentUser]);
 
     const deleteProjectFn = useCallback(async (projectId) => {
+        if (!canUseModule(currentUser, 'projects', 'write')) throw new Error('Non hai il permesso di modificare progetti.');
         await librepm.projectsDelete(projectId);
         const remaining = await librepm.projectsList();
         setProjects(remaining);
@@ -515,7 +542,7 @@ export default function AppShell({ initialUser, onLogout }) {
             }
             return prev;
         });
-    }, []);
+    }, [currentUser]);
 
     const shell = useMemo(() => ({
         // UI Controls (stable via ref wrappers)
@@ -525,6 +552,9 @@ export default function AppShell({ initialUser, onLogout }) {
         setRightPanelOpen: (...args) => setRightPanelOpenRef.current(...args),
         setProfileMenuItems: (...args) => setProfileItemsRef.current(...args),
         navigate: navigateFn,
+        canNavigate: (id, action = 'read') => canUsePage(currentUser, id, action),
+        canRead: (module) => canUseModule(currentUser, module),
+        canWrite: (module) => canUseModule(currentUser, module, 'write'),
         clearNavAction: clearNavActionFn,
 
         // Reactive data (these change, triggering shell recreation only when needed)
@@ -688,8 +718,8 @@ export default function AppShell({ initialUser, onLogout }) {
                             onMenuToggle={() => setNavOpen((open) => !open)}
                             actions={
                                 <>
-                                    {headerActions}
-                                    <NotificationBell />
+                                    {canUsePage(currentUser, activePage.id, 'write') && headerActions}
+                                    {canUseModule(currentUser, 'inbox') && <NotificationBell />}
                                     {panelToggleBtn}
                                     <ProfileMenu
                                         initials={currentUser?.displayName?.substring(0, 2)?.toUpperCase() || "JL"}
@@ -702,7 +732,7 @@ export default function AppShell({ initialUser, onLogout }) {
                         />
 
                         {/* Content Section */}
-                        <ProjectContextBar shell={shell} />
+                        {needsProjectContext(currentUser) && <ProjectContextBar shell={shell} />}
                         <section className="jl-content" ref={contentRef}>
                             {/* Page Content */}
                             <div className="jl-page" id="main-content">

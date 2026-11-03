@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { useTranslation } from 'react-i18next';
 import { useModal } from "../hooks/useModal.js";
 import NotificationPreferencesPanel from "../components/NotificationPreferencesPanel.jsx";
+import SuiteAccessPanel from "../components/SuiteAccessPanel.jsx";
 
 const DONATION_URL = "https://www.paypal.com/paypalme/lorenzodemarco92";
 
@@ -28,6 +29,7 @@ export default function SettingsPage({ shell }) {
     const { t, i18n } = useTranslation();
     const modal = useModal();
     const currentUser = shell?.currentUser;
+    const canWrite = shell?.canWrite?.('settings') ?? true;
 
     // ========================================
     // State
@@ -171,6 +173,7 @@ export default function SettingsPage({ shell }) {
     };
 
     const handleSave = async () => {
+        if (!canWrite) return;
         try {
             setSaving(true);
             await librepm.settingsUpdate(settings);
@@ -348,6 +351,7 @@ export default function SettingsPage({ shell }) {
 
     return (
         <div className="settings-page container-fluid py-3" style={{ maxWidth: 800 }}>
+            <SuiteAccessPanel user={currentUser} />
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className="mb-0">
                     <i className="bi bi-gear me-2"></i>
@@ -358,6 +362,7 @@ export default function SettingsPage({ shell }) {
                     <button
                         className="btn btn-outline-secondary btn-sm"
                         onClick={handleReset}
+                        disabled={!canWrite}
                     >
                         <i className="bi bi-arrow-counterclockwise me-1"></i>
                         {t("Restore Defaults")}
@@ -366,7 +371,7 @@ export default function SettingsPage({ shell }) {
                     <button
                         className={`btn btn-sm ${hasChanges ? "btn-success" : "btn-outline-secondary"}`}
                         onClick={handleSave}
-                        disabled={!hasChanges || saving}
+                        disabled={!hasChanges || saving || !canWrite}
                     >
                         {saving ? (
                             <span className="spinner-border spinner-border-sm me-1"></span>

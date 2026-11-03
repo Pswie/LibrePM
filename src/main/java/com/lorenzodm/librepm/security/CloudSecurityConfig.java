@@ -29,6 +29,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lorenzodm.librepm.repository.ProjectRepository;
+import com.lorenzodm.librepm.repository.ProjectMemberRepository;
 
 /**
  * Sicurezza del profilo {@code cloud}: LibrePM è esposto in rete come sezione
@@ -108,13 +111,25 @@ public class CloudSecurityConfig {
     private final ClerkProperties clerkProperties;
     private final ClerkIdentityService identityService;
     private final List<String> allowedOrigins;
+    private final SuiteAccessService suiteAccess;
+    private final ObjectMapper mapper;
+    private final ProjectRepository projects;
+    private final ProjectMemberRepository members;
 
     public CloudSecurityConfig(
             ClerkProperties clerkProperties,
             ClerkIdentityService identityService,
+            SuiteAccessService suiteAccess,
+            ObjectMapper mapper,
+            ProjectRepository projects,
+            ProjectMemberRepository members,
             @Value("${librepm.cors.allowed-origins:}") List<String> allowedOrigins) {
         this.clerkProperties = clerkProperties;
         this.identityService = identityService;
+        this.suiteAccess = suiteAccess;
+        this.mapper = mapper;
+        this.projects = projects;
+        this.members = members;
         this.allowedOrigins = allowedOrigins.stream().filter(origin -> !origin.isBlank()).toList();
 
         if (clerkProperties.getIssuerUri() == null || clerkProperties.getIssuerUri().isBlank()) {
@@ -135,7 +150,15 @@ public class CloudSecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        http.authorizeHttpRequests(auth -> auth
+        if (suiteAccess.enabled()) {
+            http.authorizeHttpRequests(auth -> auth
+                    .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers("/error", "/actuator/health", "/actuator/info").permitAll()
+                    .requestMatchers("/api/auth/**", "/oauth2/**", "/login/**", "/api/bootstrap/**", "/api/db/**", "/api/sync/**", "/api/diagnostics/**", "/api/docs/**", "/v3/api-docs/**", "/swagger-ui/**").denyAll()
+                    .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
+                    .requestMatchers("/api/**").access(new SuiteRouteAuthorizationManager(projects, members))
+                    .anyRequest().denyAll());
+        } else http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/error", "/actuator/health", "/actuator/info").permitAll()
 
@@ -208,7 +231,10 @@ public class CloudSecurityConfig {
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(new ClerkRoleConverter(clerkProperties)))
         );
-        http.addFilterAfter(new CloudUserIdentityFilter(identityService), BearerTokenAuthenticationFilter.class);
+        if (suiteAccess.enabled()) {
+            http.addFilterAfter(new SuiteAccessFilter(suiteAccess, mapper), BearerTokenAuthenticationFilter.class);
+            http.addFilterAfter(new CloudUserIdentityFilter(identityService), SuiteAccessFilter.class);
+        } else http.addFilterAfter(new CloudUserIdentityFilter(identityService), BearerTokenAuthenticationFilter.class);
 
         http.httpBasic(AbstractHttpConfigurer::disable);
         http.formLogin(AbstractHttpConfigurer::disable);

@@ -34,7 +34,10 @@
 // Configuration
 // ========================================
 
+import { accessOrigin } from '../suite-access.js';
+
 let API_BASE_URL = null;
+let ACCESS_API_ORIGIN = null;
 let CURRENT_USER_ID = null;
 let CURRENT_PROJECT_ID = null;
 
@@ -51,6 +54,7 @@ const STORAGE_KEY_LANGUAGE = 'librepm_language';
  * Su Vercel vale per esempio https://<servizio>.a.run.app/api
  */
 const CONFIGURED_BASE_URL = import.meta.env?.VITE_API_BASE_URL || null;
+const CONFIGURED_ACCESS_ORIGIN = import.meta.env?.VITE_SUITE_ACCESS_API_URL || null;
 
 /**
  * True quando si gira dentro Electron: il ponte `window.librepm` esiste solo là.
@@ -78,6 +82,20 @@ let tokenProvider = null;
  */
 function setTokenProvider(provider) {
     tokenProvider = provider;
+    if (!provider) ACCESS_API_ORIGIN = null;
+}
+
+async function accessRequest(path, options = {}) {
+    if (!ACCESS_API_ORIGIN || !tokenProvider || !path.startsWith('/')) throw new ApiError('Gestione accessi non disponibile.', 503, {});
+    const response = await fetch(`${ACCESS_API_ORIGIN}/api/access/v1${path}`, {
+        ...options, credentials: 'omit', redirect: 'error',
+        signal: options.signal ?? AbortSignal.timeout(15000),
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': `Bearer ${await currentToken()}` },
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new ApiError(result.message || 'Impossibile aggiornare gli accessi.', response.status, result);
+    return result;
 }
 
 /**
@@ -235,6 +253,7 @@ async function apiRequest(endpoint, options = {}) {
         // Handle HTTP errors
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+            if (errorData.code === 'ACCESS_NOT_ENABLED' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('librepm-access-recheck'));
             throw new ApiError(
                 errorData.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
@@ -390,6 +409,16 @@ export const librepm = {
      *   email: string, workspaceProfileId: string, roles: string[]}>}
      */
     me: (options = {}) => apiRequest('/me', options),
+    projectContext: () => apiRequest('/me/projects'),
+    setAccessApiUrl: (value) => {
+        if (!value) { ACCESS_API_ORIGIN = null; return; }
+        if (!CONFIGURED_ACCESS_ORIGIN || accessOrigin(value) !== accessOrigin(CONFIGURED_ACCESS_ORIGIN)) throw new ApiError('Indirizzo gestione accessi non configurato.', 503, {});
+        ACCESS_API_ORIGIN = accessOrigin(value);
+    },
+    accessCatalog: (options) => accessRequest('/catalog', options),
+    accessUsers: ({ offset = 0, limit = 20, q = '' } = {}, options) => accessRequest(`/users?${new URLSearchParams({ offset, limit, q })}`, options),
+    accessSync: (offset = 0) => accessRequest('/users/sync', { method: 'POST', body: { offset } }),
+    accessUpdate: (subject, body) => accessRequest(`/users/${encodeURIComponent(subject)}`, { method: 'PUT', body }),
 
     suiteProjects: () => apiRequest('/integrations/v1/projects'),
     suiteProject: (id) => apiRequest(`/integrations/v1/projects/${encodeURIComponent(id)}`),

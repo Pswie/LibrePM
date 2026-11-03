@@ -5,6 +5,7 @@ import com.lorenzodm.librepm.core.entity.User;
 import com.lorenzodm.librepm.repository.UserRepository;
 import com.lorenzodm.librepm.security.AuthProperties;
 import com.lorenzodm.librepm.security.CurrentUserUtils;
+import com.lorenzodm.librepm.security.SuiteAccessService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,7 +85,9 @@ class SuiteActorResolver {
             User user = users.findByClerkUserId(jwt.getToken().getSubject())
                     .orElseThrow(() -> new SuiteException(403, "SUITE_AUTH", "Profilo utente non collegato."));
             id = user.getId();
-            finance = authentication.getAuthorities().stream().anyMatch(a -> java.util.Set.of("ROLE_PRESIDENTE", "ROLE_RESPONSABILE_AMMINISTRATIVO").contains(a.getAuthority()));
+            finance = req.getAttribute(SuiteAccessService.ATTRIBUTE) instanceof SuiteAccessService.AccessView view
+                    ? view.allows("finance", false)
+                    : authentication.getAuthorities().stream().anyMatch(a -> java.util.Set.of("ROLE_PRESIDENTE", "ROLE_RESPONSABILE_AMMINISTRATIVO").contains(a.getAuthority()));
         } else if (auth.isEnabled()) {
             id = CurrentUserUtils.getUserIdOrNull().orElseThrow(() -> new SuiteException(401, "SUITE_AUTH", "Accesso richiesto."));
             finance = true;

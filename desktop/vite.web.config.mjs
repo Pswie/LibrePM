@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => {
     // applicazione ci dialoga per riconoscere un accesso già avvenuto. Vuoto
     // quando la variabile non c'è, e la CSP non si apre verso nessuno.
     const primaryOrigin = originOf(env.VITE_CLERK_PRIMARY_URL || '');
+    const accessOrigin = originOf(env.VITE_SUITE_ACCESS_API_URL || '');
 
     return {
         plugins: [
@@ -45,7 +46,8 @@ export default defineConfig(({ mode }) => {
                     return html
                         .replace(/%API_ORIGIN%/g, originOf(apiBaseUrl))
                         .replace(/%CLERK_HOSTS%/g, clerkHosts(publishableKey))
-                        .replace(/%PRIMARY_ORIGIN%/g, primaryOrigin);
+                        .replace(/%PRIMARY_ORIGIN%/g, primaryOrigin)
+                        .replace(/%ACCESS_ORIGIN%/g, accessOrigin);
                 },
             },
         ],

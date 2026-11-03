@@ -14,6 +14,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import jakarta.servlet.http.HttpServletRequest;
+import com.lorenzodm.librepm.security.SuiteAccessService;
+import com.lorenzodm.librepm.repository.ProjectRepository;
 
 /**
  * Dice alla SPA chi è chi sta chiamando, nel profilo {@code cloud}.
@@ -36,9 +40,13 @@ import java.util.Optional;
 public class MeController {
 
     private final ClerkIdentityService identityService;
+    private final SuiteAccessService accessService;
+    private final ProjectRepository projects;
 
-    public MeController(ClerkIdentityService identityService) {
+    public MeController(ClerkIdentityService identityService, SuiteAccessService accessService, ProjectRepository projects) {
         this.identityService = identityService;
+        this.accessService = accessService;
+        this.projects = projects;
     }
 
     /**
@@ -46,7 +54,12 @@ public class MeController {
      *         applicativi che il token porta con sé.
      */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> me(Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> me(Authentication authentication, HttpServletRequest request) {
+        SuiteAccessService.AccessView view = request.getAttribute(SuiteAccessService.ATTRIBUTE) instanceof SuiteAccessService.AccessView access ? access : null;
+        if (accessService.enabled() && view == null) return ResponseEntity.status(503).body(Map.of("code", "ACCESS_AUTHORITY_UNAVAILABLE", "message", "Verifica accessi non disponibile."));
+        if (view != null && (!"active".equals(view.status()) || !view.appEnabled())) {
+            return ResponseEntity.ok(Map.of("id", view.subject(), "roles", List.of(), "access", view.json(), "accessApiUrl", accessService.origin()));
+        }
         Optional<User> resolved = identityService.resolve(authentication);
         if (resolved.isEmpty()) {
             // Nessun utente ricavabile dal token: non è un errore del client, ma
@@ -57,7 +70,7 @@ public class MeController {
         }
 
         User user = resolved.get();
-        return ResponseEntity.ok(Map.of(
+        Map<String, Object> result = new LinkedHashMap<>(Map.of(
                 "id", user.getId(),
                 "username", user.getUsername(),
                 "displayName", user.getDisplayName() == null ? user.getUsername() : user.getDisplayName(),
@@ -65,6 +78,22 @@ public class MeController {
                 "workspaceProfileId", user.getWorkspaceProfileId() == null
                         ? "wp-personal" : user.getWorkspaceProfileId(),
                 "roles", applicationRoles(authentication)));
+        if (view != null) { result.put("access", view.json()); result.put("accessApiUrl", accessService.origin()); }
+        return ResponseEntity.ok(result);
+    }
+
+    /** Minimal selector data for an allowed module, without opening the Projects module. */
+    @GetMapping("/projects")
+    public ResponseEntity<List<Map<String, Object>>> projectContext(Authentication authentication) {
+        Optional<User> caller = identityService.resolve(authentication);
+        if (caller.isEmpty() || !caller.get().isActive() || caller.get().isGhost()) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(projects.findAllByMemberId(caller.get().getId()).stream()
+                .filter(project -> project.getDeletedAt() == null && !project.getName().startsWith("__INBOX__"))
+                .map(project -> Map.<String, Object>of(
+                        "id", project.getId(), "name", project.getName(), "archived", project.isArchived(),
+                        "financeEnabled", project.isFinanceEnabled(), "grantsEnabled", project.isGrantsEnabled(),
+                        "planningEnabled", project.isPlanningEnabled(), "timeTrackingEnabled", project.isTimeTrackingEnabled()))
+                .toList());
     }
 
     /** Da {@code ROLE_COORDINATORE_SERVIZI} a {@code coordinatore-servizi}. */

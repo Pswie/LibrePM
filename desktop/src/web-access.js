@@ -61,5 +61,10 @@ export async function resolveWebAccess({ api, signal, activateOrganization, orga
   if (!me || typeof me.id !== 'string' || !me.id || !Array.isArray(me.roles)) {
     throw new WebAccessError('profile', 'invalid_response');
   }
+  if (me.access) {
+    if (me.access.schemaVersion !== 1 || typeof me.access.subject !== 'string' || !Array.isArray(me.access.permissions)
+        || !['pending', 'active', 'suspended'].includes(me.access.status) || !me.access.applications?.librepm) throw new WebAccessError('profile', 'invalid_response');
+    api.setAccessApiUrl?.(me.accessApiUrl);
+  }
   return { user: me, roles: me.roles };
 }

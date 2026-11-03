@@ -36,12 +36,19 @@ final class CloudUserIdentityFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
+        if (request.getAttribute(SuiteAccessService.ATTRIBUTE) instanceof SuiteAccessService.AccessView view
+                && (!"active".equals(view.status()) || !view.appEnabled())) {
+            // /me may show pending status without creating an application user.
+            chain.doFilter(request, response);
+            return;
+        }
         Optional<User> caller = identityService.resolve(authentication);
-        if (caller.isEmpty()) {
+        if (caller.isEmpty() || !caller.get().isActive() || caller.get().isGhost()) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Identità utente non risolvibile");
             return;
         }
         String callerId = caller.get().getId();
+        request.setAttribute(SuiteRouteAuthorizationManager.CALLER, caller.get());
         chain.doFilter(new HttpServletRequestWrapper(request) {
             @Override
             public String getHeader(String name) {

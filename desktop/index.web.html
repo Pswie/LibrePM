@@ -35,7 +35,7 @@
       chiedere l'accesso due volte. Senza la variabile il segnaposto resta
       vuoto e non si apre nulla.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' %CLERK_HOSTS%; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' %API_ORIGIN% %CLERK_HOSTS% %PRIMARY_ORIGIN%; img-src 'self' data: blob: %CLERK_HOSTS%; font-src 'self' data:; frame-src 'self' %CLERK_HOSTS% %PRIMARY_ORIGIN%; form-action 'self' %PRIMARY_ORIGIN%;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' %CLERK_HOSTS%; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' %API_ORIGIN% %CLERK_HOSTS% %PRIMARY_ORIGIN% %ACCESS_ORIGIN%; img-src 'self' data: blob: %CLERK_HOSTS%; font-src 'self' data:; frame-src 'self' %CLERK_HOSTS% %PRIMARY_ORIGIN%; form-action 'self' %PRIMARY_ORIGIN%;" />
     <title>Progetti — Angeli del Futuro APS</title>
     <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)" />

@@ -18,8 +18,8 @@ export default function ProjectContextBar({ shell }) {
             </select>
         </div>
         <div className="jl-project-context-actions">
-            <button className="btn btn-sm btn-outline-secondary" onClick={() => shell.navigate('menu')}>{t('Projects')}</button>
-            {current && <button className="btn btn-sm btn-outline-secondary" onClick={() => shell.navigate('integrations')}>{t('Connected applications')}</button>}
+            {(shell.canNavigate?.('menu') ?? true) && <button className="btn btn-sm btn-outline-secondary" onClick={() => shell.navigate('menu')}>{t('Projects')}</button>}
+            {current && (shell.canNavigate?.('integrations') ?? true) && <button className="btn btn-sm btn-outline-secondary" onClick={() => shell.navigate('integrations')}>{t('Connected applications')}</button>}
         </div>
     </div>;
 }

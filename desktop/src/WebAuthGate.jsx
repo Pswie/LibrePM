@@ -72,7 +72,7 @@ export default function WebAuthGate({ isSatellite = false }) {
         resolveWebAccess({ api: librepm, signal: controller.signal, activateOrganization: setActive, organizationId: organizationToActivate })
             .then((resolved) => {
                 if (!active || controller.signal.aborted) return;
-                librepm.setCurrentUser(resolved.user.id);
+                librepm.setCurrentUser(resolved.user.access && !resolved.user.access.applications?.librepm?.enabled ? null : resolved.user.id);
                 setSession(resolved);
             })
             .catch((failure) => {
@@ -97,6 +97,30 @@ export default function WebAuthGate({ isSatellite = false }) {
         librepm.setCurrentUser(null);
         await signOut();
     }, [signOut]);
+
+    useEffect(() => {
+        if (!session?.user?.access) return;
+        const controller = new AbortController();
+        let checking = false;
+        const refresh = async () => {
+            if (checking || document.visibilityState === 'hidden') return;
+            checking = true;
+            try {
+                const me = await librepm.me({ signal: controller.signal });
+                if (!controller.signal.aborted && me.access && (me.access.version !== session.user.access.version
+                    || me.access.status !== session.user.access.status || JSON.stringify(me.access.permissions) !== JSON.stringify(session.user.access.permissions))) {
+                    librepm.setAccessApiUrl(me.accessApiUrl);
+                    librepm.setCurrentUser(me.access.applications?.librepm?.enabled ? me.id : null);
+                    setSession({ user: me, roles: me.roles });
+                }
+            } catch { /* API requests still fail closed; a focus refresh never grants stale access. */ }
+            finally { checking = false; }
+        };
+        window.addEventListener('focus', refresh);
+        window.addEventListener('librepm-access-recheck', refresh);
+        document.addEventListener('visibilitychange', refresh);
+        return () => { controller.abort(); window.removeEventListener('focus', refresh); window.removeEventListener('librepm-access-recheck', refresh); document.removeEventListener('visibilitychange', refresh); };
+    }, [session]);
 
     if (!authLoaded) {
         return <Centered title="Avvio di Progetti…" />;
@@ -154,7 +178,16 @@ export default function WebAuthGate({ isSatellite = false }) {
         return <Centered title="Riconoscimento in corso…" />;
     }
 
-    if (session.roles.length === 0) {
+    if (session.user.access && (session.user.access.status !== 'active' || !session.user.access.applications?.librepm?.enabled)) {
+        const pending = session.user.access.status === 'pending';
+        return <Centered title={pending ? 'In attesa di approvazione' : 'Accesso a Progetti non abilitato'}>
+            <p>{pending ? 'La registrazione è completata. L’amministratore deve ancora assegnarti gli accessi.' : 'Il tuo account non è abilitato a questa applicazione. Contatta l’amministratore.'}</p>
+            <button type="button" className="btn btn-primary me-2" onClick={() => setRetryAttempt(attempt => attempt + 1)}>Controlla accesso</button>
+            <button type="button" className="btn btn-outline-secondary" onClick={handleSignOut}>Esci</button>
+        </Centered>;
+    }
+
+    if (!session.user.access && session.roles.length === 0) {
         return (
             <Centered title="Nessun ruolo assegnato">
                 <p className="mb-3">

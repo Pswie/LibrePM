@@ -20,6 +20,7 @@ export default function CommandPalette({ shell }) {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [results, setResults] = useState([]);
     const inputRef = useRef(null);
+    const permitted = (item) => !item.page || (shell.canNavigate?.(item.page, item.write ? 'write' : 'read') ?? true);
 
     // Toggle with Ctrl+K
     useEffect(() => {
@@ -54,20 +55,21 @@ export default function CommandPalette({ shell }) {
         if (!query) {
             // Default: Navigation
             setResults([
-                { type: "nav", label: t("Go to Dashboard"), icon: "bi-speedometer2", action: () => shell.navigate("dashboard") },
-                { type: "nav", label: t("Go to Projects"), icon: "bi-folder2-open", action: () => shell.navigate("menu") },
-                { type: "nav", label: t("Go to Planner"), icon: "bi-table", action: () => shell.navigate("planner") },
-                { type: "nav", label: t("Go to Kanban"), icon: "bi-kanban", action: () => shell.navigate("kanban") },
-                { type: "nav", label: t("Go to Calendar"), icon: "bi-calendar3", action: () => shell.navigate("calendar") },
-                { type: "nav", label: t("Go to Notes"), icon: "bi-journal-text", action: () => shell.navigate("notes") },
-                { type: "nav", label: t("Go to Settings"), icon: "bi-gear", action: () => shell.navigate("settings") },
+                { type: "nav", page: "dashboard", label: t("Go to Dashboard"), icon: "bi-speedometer2", action: () => shell.navigate("dashboard") },
+                { type: "nav", page: "menu", label: t("Go to Projects"), icon: "bi-folder2-open", action: () => shell.navigate("menu") },
+                { type: "nav", page: "planner", label: t("Go to Planner"), icon: "bi-table", action: () => shell.navigate("planner") },
+                { type: "nav", page: "kanban", label: t("Go to Kanban"), icon: "bi-kanban", action: () => shell.navigate("kanban") },
+                { type: "nav", page: "calendar", label: t("Go to Calendar"), icon: "bi-calendar3", action: () => shell.navigate("calendar") },
+                { type: "nav", page: "notes", label: t("Go to Notes"), icon: "bi-journal-text", action: () => shell.navigate("notes") },
+                { type: "nav", page: "settings", label: t("Go to Settings"), icon: "bi-gear", action: () => shell.navigate("settings") },
                 {
                     type: "action",
+                    page: "menu", write: true,
                     label: t("New Project"),
                     icon: "bi-plus-circle",
                     action: () => shell.navigate("menu", null, "openNewProjectModal")
                 },
-            ]);
+            ].filter(permitted));
             return;
         }
 
@@ -76,17 +78,17 @@ export default function CommandPalette({ shell }) {
 
         // 1. Navigation commands
         const navs = [
-            { type: "nav", label: t("Go to Dashboard"), icon: "bi-speedometer2", action: () => shell.navigate("dashboard") },
-            { type: "nav", label: t("Go to Planner"), icon: "bi-table", action: () => shell.navigate("planner") },
-            { type: "nav", label: t("Go to Kanban"), icon: "bi-kanban", action: () => shell.navigate("kanban") },
-            { type: "nav", label: t("Go to Notes"), icon: "bi-journal-text", action: () => shell.navigate("notes") },
+            { type: "nav", page: "dashboard", label: t("Go to Dashboard"), icon: "bi-speedometer2", action: () => shell.navigate("dashboard") },
+            { type: "nav", page: "planner", label: t("Go to Planner"), icon: "bi-table", action: () => shell.navigate("planner") },
+            { type: "nav", page: "kanban", label: t("Go to Kanban"), icon: "bi-kanban", action: () => shell.navigate("kanban") },
+            { type: "nav", page: "notes", label: t("Go to Notes"), icon: "bi-journal-text", action: () => shell.navigate("notes") },
         ];
-        filtered.push(...navs.filter(n => n.label.toLowerCase().includes(lowerQuery)));
+        filtered.push(...navs.filter(n => permitted(n) && n.label.toLowerCase().includes(lowerQuery)));
         setResults(filtered);
         setSelectedIndex(0);
 
         // 2. Debounced full-text search (PRD-02-FR-004)
-        if (query.length >= 2) {
+        if (query.length >= 2 && (shell.canRead?.('notes') ?? true) && (shell.canRead?.('planner') ?? true)) {
             if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
             searchTimerRef.current = setTimeout(async () => {
                 try {
